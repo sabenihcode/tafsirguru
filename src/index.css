@@ -14,13 +14,25 @@ body {
 }
 
 .tafsir-html h2 {
-  @apply mt-3 mb-2 text-base font-bold text-emerald-800;
+  @apply mt-2 mb-1 text-sm font-bold text-emerald-800;
 }
 .tafsir-html p {
-  @apply mb-3 leading-relaxed;
+  @apply mb-2 leading-relaxed;
 }
 .tafsir-html blockquote {
-  @apply border-l-4 border-amber-300 pl-3 italic text-emerald-700;
+  @apply border-l-2 border-amber-300 pl-2 italic text-emerald-700;
+}
+
+@media (min-width: 640px) {
+  .tafsir-html h2 {
+    @apply mt-3 mb-2 text-base;
+  }
+  .tafsir-html p {
+    @apply mb-3;
+  }
+  .tafsir-html blockquote {
+    @apply border-l-4 pl-3;
+  }
 }
 
 /* Scrollbar halus */
