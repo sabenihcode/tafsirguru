@@ -32,6 +32,17 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
         </div>
 
         <div className="min-w-0 flex-1 space-y-2 sm:space-y-3">
+          {message.aiUsed && (
+            <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700 sm:text-xs">
+              ✨ Dijelaskan dengan AI
+            </div>
+          )}
+          {message.aiError && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[10px] text-amber-700 sm:text-xs">
+              ⚠️ {message.aiError}
+            </div>
+          )}
+
           {message.type === "tafsir" && message.data && (
             <TafsirView data={message.data as TafsirData} />
           )}
