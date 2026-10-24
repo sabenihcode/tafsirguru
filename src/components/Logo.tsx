@@ -19,7 +19,7 @@ export default function Logo({ className = "h-full w-full", fallbackClassName = 
     <img
       src={LOGO_URL}
       alt="Guru Tafsir"
-      className={className}
+      className={`object-contain ${className}`}
       onError={() => setError(true)}
     />
   );
