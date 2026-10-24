@@ -11,7 +11,15 @@
 
 body {
   @apply antialiased;
+  font-size: 16px;
 }
+
+@media (min-width: 640px) {
+  body {
+    font-size: 17px;
+  }
+}
+
 
 .tafsir-html h2 {
   @apply mt-2 mb-1 text-sm font-bold text-emerald-800;
