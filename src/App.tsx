@@ -217,7 +217,6 @@ export default function App() {
                 </select>
               </div>
             </div>
-            <span>Gunakan format: Surah [nama] ayat [nomor]</span>
           </div>
         </div>
       </main>
