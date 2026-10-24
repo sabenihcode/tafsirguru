@@ -103,10 +103,10 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-[100dvh] flex-col overflow-hidden bg-emerald-50/50">
+    <div className="fixed inset-0 flex flex-col bg-emerald-50/50">
       <Header />
 
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-2 pb-2 sm:px-4 sm:pb-4">
+      <main className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col px-2 pb-2 sm:px-4 sm:pb-4">
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto py-3 sm:space-y-4 sm:py-4">
           {messages.map((m) => (
             <ChatMessage key={m.id} message={m} onSelectResult={handleSelectResult} />
