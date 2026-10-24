@@ -25,7 +25,7 @@
       ]
     }
   ],
-  "buildCommand": "VITE_API_BASE_URL=/api npm run build",
+  "buildCommand": "VITE_USE_BACKEND=true npm run build",
   "outputDirectory": "dist",
   "framework": "vite"
 }
