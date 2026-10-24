@@ -55,7 +55,7 @@ export default function App() {
     setLoading(true);
     addMessage({ id: crypto.randomUUID(), role: "assistant", content: "", type: "loading" });
 
-    const finalize = (assistant: { id?: string; role: "assistant"; content: string; type: any; data?: any }) => {
+    const finalize = (assistant: { id?: string; role: "assistant"; content: string; type: any; data?: any; aiError?: string; aiUsed?: boolean }) => {
       const current = useChatStore.getState().messages;
       const withoutLoading = current.filter((m) => m.type !== "loading");
       useChatStore.setState({ messages: [...withoutLoading, { ...assistant, id: assistant.id || crypto.randomUUID() }] });
@@ -68,6 +68,8 @@ export default function App() {
         content: res.answer,
         type: res.type === "search" ? "search" : res.type === "not_found" ? "not_found" : res.type === "error" ? "error" : "tafsir",
         data: res.source_data,
+        aiError: res.ai_error,
+        aiUsed: res.type === "tafsir" && !res.ai_error,
       });
     } catch (err: any) {
       finalize({
@@ -217,6 +219,7 @@ export default function App() {
                 </select>
               </div>
             </div>
+            <span className="hidden sm:inline">Format: Surah [nama] ayat [nomor]</span>
           </div>
         </div>
       </main>
