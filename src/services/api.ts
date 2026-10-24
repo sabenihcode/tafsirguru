@@ -2,11 +2,15 @@ import axios from "axios";
 import type { Chapter, TafsirResource, TafsirData, SearchResult } from "@/store/useChatStore";
 import { extractSurahAyah, nameToSurahId, getSurahById } from "@/lib/surahNames";
 const API_BASE = ((import.meta as any).env?.VITE_API_BASE_URL as string) || "";
+const USE_BACKEND_RAW = ((import.meta as any).env?.VITE_USE_BACKEND as string) === "true";
 const QURAN_API = "https://api.quran.com/api/v4";
-const USE_BACKEND = Boolean(API_BASE);
+// Backend aktif jika VITE_USE_BACKEND=true atau VITE_API_BASE_URL di-set (full URL atau /api)
+const USE_BACKEND = USE_BACKEND_RAW || Boolean(API_BASE);
 
+// Kalau API_BASE adalah full URL (http...), jadikan baseURL axios.
+// Kalau API_BASE kosong atau hanya "/api", endpoint dipanggil dengan path absolut agar tidak double prefix.
 const backendClient = axios.create({
-  baseURL: API_BASE || undefined,
+  baseURL: API_BASE.startsWith("http") ? API_BASE : undefined,
   timeout: 10000,
 });
 
@@ -14,6 +18,9 @@ const quranClient = axios.create({
   baseURL: QURAN_API,
   timeout: 10000,
 });
+
+// Endpoint backend selalu diawali /api sesuai definisi FastAPI.
+const API_PREFIX = "/api";
 
 let translationMap: TafsirResource[] = [];
 let currentLanguage: "id" | "en" = "id";
@@ -61,7 +68,7 @@ function stripTags(html: string): string {
 
 export async function fetchChapters(): Promise<Chapter[]> {
   if (USE_BACKEND) {
-    const res = await backendClient.get("/api/chapters");
+    const res = await backendClient.get(`${API_PREFIX}/chapters`);
     return res.data.chapters;
   }
   const res = await quranClient.get("/chapters");
@@ -70,7 +77,7 @@ export async function fetchChapters(): Promise<Chapter[]> {
 
 export async function fetchTafsirs(): Promise<TafsirResource[]> {
   if (USE_BACKEND) {
-    const res = await backendClient.get("/api/tafsirs");
+    const res = await backendClient.get(`${API_PREFIX}/tafsirs`);
     return res.data.tafsirs;
   }
   const res = await quranClient.get("/resources/tafsirs");
@@ -79,7 +86,7 @@ export async function fetchTafsirs(): Promise<TafsirResource[]> {
 
 export async function fetchTranslations(): Promise<TafsirResource[]> {
   if (USE_BACKEND) {
-    const res = await backendClient.get("/api/translations");
+    const res = await backendClient.get(`${API_PREFIX}/translations`);
     return res.data.translations;
   }
   const res = await quranClient.get("/resources/translations");
@@ -92,7 +99,7 @@ export async function fetchTafsir(
   tafsirId: number
 ): Promise<TafsirData> {
   if (USE_BACKEND) {
-    const res = await backendClient.get(`/api/tafsir/${surah}/${ayah}`, {
+    const res = await backendClient.get(`${API_PREFIX}/tafsir/${surah}/${ayah}`, {
       params: { tafsir_id: tafsirId, translation_id: defaultTranslationId, summarize: false },
     });
     return res.data;
@@ -126,7 +133,7 @@ export async function fetchTafsir(
 export async function searchAyahs(query: string): Promise<{ total: number; results: SearchResult[] }> {
   const lang = currentLanguage === "id" ? "id" : "en";
   if (USE_BACKEND) {
-    const res = await backendClient.get("/api/search", { params: { q: query, size: 10, language: lang } });
+    const res = await backendClient.get(`${API_PREFIX}/search`, { params: { q: query, size: 10, language: lang } });
     return { total: res.data.total, results: res.data.results };
   }
 
@@ -167,7 +174,7 @@ export async function chatWithBot(
   source_data: TafsirData | { query: string; results: SearchResult[]; total: number };
 }> {
   if (USE_BACKEND) {
-    const res = await backendClient.post("/api/chat", { question, tafsir_id: tafsirId, language });
+    const res = await backendClient.post(`${API_PREFIX}/chat`, { question, tafsir_id: tafsirId, language });
     return res.data;
   }
 
