@@ -44,12 +44,12 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
           )}
 
           {(message.type === "text" || message.type === "error" || message.type === "not_found") && (
-            <div className="text-xs leading-relaxed whitespace-pre-wrap sm:text-sm">{message.content}</div>
+            <div className="text-sm leading-relaxed whitespace-pre-wrap sm:text-base">{message.content}</div>
           )}
 
           {message.type === "loading" && (
-            <div className="flex items-center gap-2 text-xs text-emerald-700 sm:text-sm">
-              <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700 sm:h-4 sm:w-4" />
+            <div className="flex items-center gap-2 text-sm text-emerald-700 sm:text-base">
+              <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-emerald-300 border-t-emerald-700" />
               Mengambil data…
             </div>
           )}
@@ -62,44 +62,44 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
 function TafsirView({ data }: { data: TafsirData }) {
   return (
     <div className="space-y-2 sm:space-y-3">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 sm:text-xs">
-        <BookOpen className="h-3 w-3 sm:h-4 sm:w-4" />
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 sm:text-sm">
+        <BookOpen className="h-4 w-4 sm:h-5 sm:w-5" />
         <span className="truncate">Tafsir {data.tafsir_source}</span>
       </div>
 
-      <div className="rounded-lg bg-emerald-50/70 p-2.5 text-right sm:rounded-xl sm:p-4">
-        <p className="font-arabic text-xl leading-normal text-emerald-950 sm:text-2xl md:text-3xl md:leading-loose">
+      <div className="rounded-lg bg-emerald-50/70 p-3 text-right sm:rounded-xl sm:p-4">
+        <p className="font-arabic text-2xl leading-normal text-emerald-950 sm:text-3xl md:text-4xl md:leading-loose">
           {data.ayah_arabic}
         </p>
-        <p className="mt-2 text-xs font-medium text-emerald-700 sm:mt-3 sm:text-sm">
+        <p className="mt-2 text-sm font-medium text-emerald-700 sm:mt-3 sm:text-base">
           {data.surah_name} ({data.surah}:{data.ayah})
         </p>
       </div>
 
       {data.ayah_translation && (
-        <div className="rounded-lg border border-amber-100 bg-amber-50/40 p-2.5 sm:rounded-xl sm:p-4">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 sm:text-xs">
+        <div className="rounded-lg border border-amber-100 bg-amber-50/40 p-3 sm:rounded-xl sm:p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-700 sm:text-sm">
             Terjemahan — {data.translation_name || "English"}
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-emerald-900 sm:text-sm">
+          <p className="mt-1 text-sm leading-relaxed text-emerald-900 sm:text-base">
             {data.ayah_translation}
           </p>
         </div>
       )}
 
-      <div className="rounded-lg border border-emerald-100 bg-white p-2.5 sm:rounded-xl sm:p-4">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600 sm:text-xs">Tafsir</p>
+      <div className="rounded-lg border border-emerald-100 bg-white p-3 sm:rounded-xl sm:p-4">
+        <p className="text-xs font-semibold uppercase tracking-wide text-emerald-600 sm:text-sm">Tafsir</p>
           {data.tafsir_text ? (
           <div
-            className="tafsir-html mt-1.5 text-xs text-emerald-900 sm:mt-2 sm:text-sm"
+            className="tafsir-html mt-2 text-sm text-emerald-900 sm:mt-3 sm:text-base"
             dangerouslySetInnerHTML={{ __html: data.tafsir_text }}
           />
         ) : (
-          <p className="mt-1.5 text-xs text-emerald-700 sm:mt-2 sm:text-sm">Tafsir tidak tersedia untuk ayat ini.</p>
+          <p className="mt-2 text-sm text-emerald-700 sm:mt-3 sm:text-base">Tafsir tidak tersedia untuk ayat ini.</p>
         )}
       </div>
 
-      <p className="text-[9px] text-emerald-400 sm:text-[10px]">
+      <p className="text-[10px] text-emerald-400 sm:text-xs">
         Sumber: Quran.com — {data.tafsir_source}
       </p>
     </div>
@@ -115,24 +115,24 @@ function SearchResultsView({
 }) {
   return (
     <div className="space-y-2 sm:space-y-3">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-600 sm:text-xs">
-        <Search className="h-3 w-3 sm:h-4 sm:w-4" />
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-600 sm:text-sm">
+        <Search className="h-4 w-4 sm:h-5 sm:w-5" />
         Hasil Pencarian
       </div>
-      <p className="text-xs text-emerald-800 sm:text-sm">
+      <p className="text-sm text-emerald-800 sm:text-base">
         Ditemukan {data.total} ayat untuk kata kunci “{data.query}”. Klik untuk lihat tafsir.
       </p>
-      <div className="grid gap-1.5 sm:gap-2">
+      <div className="grid gap-2 sm:gap-3">
         {data.results.map((r) => (
           <button
             key={r.verse_key}
             onClick={() => onSelect?.(r.surah, r.ayah)}
-            className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-2 text-left transition hover:bg-emerald-100/60 sm:rounded-xl sm:p-3"
+            className="rounded-lg border border-emerald-100 bg-emerald-50/40 p-2.5 text-left transition hover:bg-emerald-100/60 sm:rounded-xl sm:p-3"
           >
-            <p className="text-xs font-semibold text-emerald-800 sm:text-sm">
+            <p className="text-sm font-semibold text-emerald-800 sm:text-base">
               {r.surah_name || `Surah ${r.surah}`} {r.ayah} ({r.verse_key})
             </p>
-            <p className="mt-0.5 line-clamp-2 text-[10px] text-emerald-600 sm:mt-1 sm:text-xs">{r.text_snippet}</p>
+            <p className="mt-1 line-clamp-2 text-xs text-emerald-600 sm:text-sm">{r.text_snippet}</p>
           </button>
         ))}
       </div>
