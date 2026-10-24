@@ -512,19 +512,25 @@ async def _call_cohere(messages: List[Dict[str, str]]) -> str:
         return r.json()["message"]["content"][0]["text"]
 
 
-async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEFAULT_LANGUAGE) -> str:
+async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEFAULT_LANGUAGE) -> Tuple[str, Optional[str]]:
+    """
+    Merangkum/menerjemahkan tafsir menggunakan LLM.
+    Mengembalikan tuple (text, error_message).
+    """
     if not tafsir_text:
-        return tafsir_text
+        return tafsir_text, None
+    if not COHERE_API_KEY and not OPENAI_API_KEY:
+        return tafsir_text, "AI provider tidak dikonfigurasi"
     messages = _llm_prompt(verse_key, tafsir_text, language)
     try:
         if COHERE_API_KEY:
-            return await _call_cohere(messages)
+            return await _call_cohere(messages), None
         if OPENAI_API_KEY:
-            return await _call_openai(messages)
-    except Exception:
+            return await _call_openai(messages), None
+    except Exception as exc:
         # Jika LLM gagal, tetap kembalikan teks asli dari API
-        pass
-    return tafsir_text
+        return tafsir_text, f"AI gagal: {exc}"
+    return tafsir_text, "AI provider tidak dikonfigurasi"
 
 
 # ---------------------------------------------------------------------------
@@ -541,6 +547,7 @@ class ChatResponse(BaseModel):
     type: str
     source_data: Dict[str, Any]
     from_api: bool = True
+    ai_error: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -549,6 +556,20 @@ class ChatResponse(BaseModel):
 @app.get("/")
 def root():
     return {"message": "Chatbot Tafsir Al-Qur'an API - Live from Quran.com API"}
+
+
+@app.get("/api/health")
+def health():
+    return {
+        "status": "ok",
+        "ai_providers": {
+            "cohere": bool(COHERE_API_KEY),
+            "openai": bool(OPENAI_API_KEY),
+            "active_model": COHERE_MODEL if COHERE_API_KEY else (OPENAI_MODEL if OPENAI_API_KEY else None),
+        },
+        "default_language": DEFAULT_LANGUAGE,
+        "default_translation_id": DEFAULT_TRANSLATION_ID,
+    }
 
 
 @app.get("/api/chapters")
@@ -604,7 +625,10 @@ async def tafsir_by_ayah(
     if not bundle.get("tafsir_text") and not bundle.get("ayah_arabic"):
         raise HTTPException(status_code=404, detail="Data tafsir tidak ditemukan di Quran.com API.")
     if summarize and bundle.get("tafsir_text"):
-        bundle["summary"] = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], DEFAULT_LANGUAGE)
+        summary, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], DEFAULT_LANGUAGE)
+        bundle["summary"] = summary
+        if ai_error:
+            bundle["ai_error"] = ai_error
     return bundle
 
 
@@ -687,15 +711,20 @@ async def chat(req: ChatRequest):
             )
 
         answer = bundle["tafsir_text"]
-        if OPENAI_API_KEY and bundle.get("tafsir_text"):
-            answer = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], req.language)
+        ai_error = None
+        if bundle.get("tafsir_text"):
+            answer, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], req.language)
 
-        return ChatResponse(
-            answer=answer,
-            type="tafsir",
-            source_data=bundle,
-            from_api=True,
-        )
+        response_data: Dict[str, Any] = {
+            "answer": answer,
+            "type": "tafsir",
+            "source_data": bundle,
+            "from_api": True,
+        }
+        if ai_error:
+            response_data["ai_error"] = ai_error
+
+        return ChatResponse(**response_data)
 
     # Jika bukan referensi spesifik, lakukan pencarian tematik
     try:
