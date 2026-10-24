@@ -138,20 +138,20 @@ export default function App() {
                 value={ayahInput}
                 onChange={(e) => setAyahInput(e.target.value)}
                 placeholder="Ayat"
-                className="w-full rounded-lg border border-emerald-200 bg-white px-2.5 py-2 text-xs text-emerald-900 placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:rounded-xl sm:px-3 sm:text-sm"
+                className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-900 placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:rounded-xl sm:px-3.5 sm:text-base"
               />
               <button
                 type="button"
                 onClick={handleManualTafsir}
                 disabled={loading}
-                className="shrink-0 rounded-lg bg-emerald-700 px-2.5 py-2 text-xs font-medium text-white hover:bg-emerald-800 disabled:opacity-60 sm:rounded-xl sm:px-3 sm:text-sm"
+                className="shrink-0 rounded-lg bg-emerald-700 px-3 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60 sm:rounded-xl sm:px-3.5 sm:text-base"
               >
                 Tafsir
               </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          <div className="flex items-center gap-2">
             <input
               type="text"
               value={input}
@@ -163,27 +163,27 @@ export default function App() {
                 }
               }}
               placeholder="Tanyakan tafsir atau kata kunci…"
-              className="flex-1 rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs text-emerald-900 placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:rounded-xl sm:px-4 sm:py-3 sm:text-sm"
+              className="flex-1 rounded-lg border border-emerald-200 bg-white px-3.5 py-2.5 text-sm text-emerald-900 placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:rounded-xl sm:px-4 sm:py-3 sm:text-base"
             />
             <button
               type="button"
               onClick={() => handleSend()}
               disabled={loading || !input.trim()}
-              className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400 text-emerald-900 shadow-sm hover:bg-amber-300 disabled:opacity-60 sm:h-11 sm:w-11 sm:rounded-xl"
+              className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400 text-emerald-900 shadow-sm hover:bg-amber-300 disabled:opacity-60 sm:h-11 sm:w-11 sm:rounded-xl"
             >
-              <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <Send className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={clearMessages}
               title="Hapus percakapan"
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 sm:h-11 sm:w-11 sm:rounded-xl"
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 sm:h-11 sm:w-11 sm:rounded-xl"
             >
-              <RotateCcw className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <RotateCcw className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-[10px] text-emerald-500">
+          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-emerald-500 sm:text-sm">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <div className="flex items-center gap-1">
                 <BookOpen className="h-3 w-3" />
