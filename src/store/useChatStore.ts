@@ -31,6 +31,8 @@ export interface ChatMessage {
   content: string;
   type: MessageType;
   data?: TafsirData | { query: string; results: SearchResult[]; total: number };
+  aiError?: string;
+  aiUsed?: boolean;
 }
 
 export interface Chapter {
