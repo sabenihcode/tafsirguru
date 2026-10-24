@@ -1,0 +1,36 @@
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-arabic: 'Amiri', 'Scheherazade New', serif;
+}
+
+.font-arabic {
+  font-family: var(--font-arabic);
+}
+
+body {
+  @apply antialiased;
+}
+
+.tafsir-html h2 {
+  @apply mt-3 mb-2 text-base font-bold text-emerald-800;
+}
+.tafsir-html p {
+  @apply mb-3 leading-relaxed;
+}
+.tafsir-html blockquote {
+  @apply border-l-4 border-amber-300 pl-3 italic text-emerald-700;
+}
+
+/* Scrollbar halus */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #a7f3d0;
+  border-radius: 9999px;
+}
