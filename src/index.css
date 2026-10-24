@@ -1,24 +1,55 @@
-import { Wifi } from "lucide-react";
-import Logo from "./Logo";
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
 
-export default function Header() {
-  return (
-    <header className="sticky top-0 z-10 border-b border-emerald-100 bg-emerald-900/95 px-3 py-2 text-white backdrop-blur sm:px-4 sm:py-3">
-      <div className="mx-auto flex max-w-3xl items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-400 p-1 sm:h-10 sm:w-10 sm:p-1.5">
-            <Logo />
-          </div>
-          <div>
-            <h1 className="text-base font-bold leading-tight sm:text-lg">Guru Tafsir</h1>
-            <p className="text-xs leading-none text-emerald-200 sm:text-sm">Pelajari tafsir Al Quran</p>
-          </div>
-        </div>
-        <div className="hidden items-center gap-1 rounded-full bg-emerald-800 px-2 py-1 text-[10px] font-medium text-amber-300 sm:flex">
-          <Wifi className="h-3 w-3" />
-          <span className="hidden sm:inline">Live from Quran.com API</span>
-        </div>
-      </div>
-    </header>
-  );
+@theme {
+  --font-arabic: 'Amiri', 'Scheherazade New', serif;
+}
+
+.font-arabic {
+  font-family: var(--font-arabic);
+}
+
+body {
+  @apply antialiased;
+  font-size: 16px;
+}
+
+@media (min-width: 640px) {
+  body {
+    font-size: 17px;
+  }
+}
+
+.tafsir-html h2 {
+  @apply mt-3 mb-2 text-base font-bold text-emerald-800;
+}
+.tafsir-html p {
+  @apply mb-3 leading-relaxed;
+}
+.tafsir-html blockquote {
+  @apply border-l-4 border-amber-300 pl-3 italic text-emerald-700;
+}
+
+@media (min-width: 640px) {
+  .tafsir-html h2 {
+    @apply mt-4 mb-3 text-lg;
+  }
+  .tafsir-html p {
+    @apply mb-4;
+  }
+  .tafsir-html blockquote {
+    @apply border-l-4 pl-3;
+  }
+}
+
+/* Scrollbar halus */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background-color: #a7f3d0;
+  border-radius: 9999px;
 }
