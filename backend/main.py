@@ -31,13 +31,6 @@ ENGLISH_FALLBACK_TRANSLATION_ID = 85  # M.A.S. Abdel Haleem
 DEFAULT_LANGUAGE = "id"
 REQUEST_TIMEOUT = 10.0
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
-
-COHERE_API_KEY = os.getenv("COHERE_API_KEY")
-COHERE_MODEL = os.getenv("COHERE_MODEL", "command-r-plus-08-2024")
-COHERE_BASE_URL = os.getenv("COHERE_BASE_URL", "https://api.cohere.com/v2")
 
 # ---------------------------------------------------------------------------
 # Cache sederhana in-memory (TTL + LRU)
@@ -465,115 +458,6 @@ def validate_ref(surah: int, ayah: int):
 
 
 # ---------------------------------------------------------------------------
-# LLM (opsional) - hanya untuk merapikan / menerjemahkan bahasa
-# ---------------------------------------------------------------------------
-def _llm_prompt(verse_key: str, tafsir_text: str, language: str) -> List[Dict[str, str]]:
-    target_lang = "Bahasa Indonesia" if language.lower().startswith("id") else "English"
-    instruction = (
-        f"Anda adalah penerjemah dan penjelas tafsir Al-Qur'an. "
-        f"Tugas Anda adalah MENERJEMAHKAN dan MENJELASKAN teks tafsir berikut ke dalam {target_lang}. "
-        f"Jawaban HARUS seluruhnya dalam {target_lang}, bukan dalam bahasa lain. "
-        f"Gunakan bahasa yang sopan, mudah dipahami, dan sesuai dengan gaya penjelasan agama Islam. "
-        f"JANGAN menambahkan informasi baru, hadis, riwayat, atau penafsiran yang tidak ada dalam teks. "
-        f"JANGAN mengubah makna. Pertahankan struktur penjelasan sesuai urutan teks asli."
-    )
-    if language.lower().startswith("id"):
-        instruction += (
-            " Contoh gaya jawaban yang benar: 'Ayat ini menjelaskan bahwa...' atau 'Menurut tafsir, maknanya adalah...'. "
-            "Pastikan semua kata, kalimat, dan istilah asing (seperti nama orang atau tempat) diterjemahkan atau disesuaikan dengan ejaan Indonesia yang umum."
-        )
-    return [
-        {
-            "role": "system",
-            "content": instruction,
-        },
-        {
-            "role": "user",
-            "content": f"Terjemahkan dan jelaskan tafsir berikut untuk ayat {verse_key} ke dalam {target_lang}:\n\n{tafsir_text[:8000]}",
-        },
-    ]
-
-
-async def _call_openai(messages: List[Dict[str, str]]) -> str:
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        r = await client.post(
-            f"{OPENAI_BASE_URL}/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={"model": OPENAI_MODEL, "messages": messages, "temperature": 0.2},
-        )
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
-
-
-async def _call_cohere(messages: List[Dict[str, str]]) -> str:
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        payload = {
-            "model": COHERE_MODEL,
-            "messages": messages,
-            "temperature": 0.1,
-            "max_tokens": 2048,
-        }
-        print(f"[COHERE] Request model={COHERE_MODEL}")
-        try:
-            r = await client.post(
-                f"{COHERE_BASE_URL}/chat",
-                headers={
-                    "Authorization": f"Bearer {COHERE_API_KEY}",
-                    "Content-Type": "application/json",
-                },
-                json=payload,
-            )
-            print(f"[COHERE] Response status={r.status_code}")
-            if r.status_code >= 400:
-                print(f"[COHERE] Error body: {r.text[:1000]}")
-            r.raise_for_status()
-            data = r.json()
-            print(f"[COHERE] Response keys={list(data.keys())}")
-            if "message" not in data:
-                raise ValueError(f"Unexpected Cohere response: {list(data.keys())}")
-            content = data["message"].get("content", [])
-            if not content or not isinstance(content, list):
-                raise ValueError(f"Empty content in Cohere response: {content}")
-            return content[0].get("text", "")
-        except httpx.TimeoutException:
-            print("[COHERE] Timeout 30 detik")
-            raise
-        except Exception as exc:
-            print(f"[COHERE] Exception: {exc}")
-            raise
-
-
-async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEFAULT_LANGUAGE) -> Tuple[str, Optional[str]]:
-    """
-    Merangkum/menerjemahkan tafsir menggunakan LLM.
-    Mengembalikan tuple (text, error_message).
-    """
-    print(f"[SUMMARIZE] verse={verse_key} language={language} text_len={len(tafsir_text)} cohere={bool(COHERE_API_KEY)} openai={bool(OPENAI_API_KEY)}")
-    if not tafsir_text:
-        return tafsir_text, None
-    if not COHERE_API_KEY and not OPENAI_API_KEY:
-        return tafsir_text, "AI provider tidak dikonfigurasi"
-    messages = _llm_prompt(verse_key, tafsir_text, language)
-    try:
-        if COHERE_API_KEY:
-            result = await _call_cohere(messages)
-            print(f"[SUMMARIZE] Cohere success result_len={len(result)}")
-            return result, None
-        if OPENAI_API_KEY:
-            result = await _call_openai(messages)
-            print(f"[SUMMARIZE] OpenAI success result_len={len(result)}")
-            return result, None
-    except Exception as exc:
-        print(f"[SUMMARIZE] Error: {exc}")
-        # Jika LLM gagal, tetap kembalikan teks asli dari API
-        return tafsir_text, f"AI gagal: {exc}"
-    return tafsir_text, "AI provider tidak dikonfigurasi"
-
-
-# ---------------------------------------------------------------------------
 # Schemas
 # ---------------------------------------------------------------------------
 class ChatRequest(BaseModel):
@@ -587,8 +471,6 @@ class ChatResponse(BaseModel):
     type: str
     source_data: Dict[str, Any]
     from_api: bool = True
-    ai_used: bool = False
-    ai_error: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -603,11 +485,6 @@ def root():
 def health():
     return {
         "status": "ok",
-        "ai_providers": {
-            "cohere": bool(COHERE_API_KEY),
-            "openai": bool(OPENAI_API_KEY),
-            "active_model": COHERE_MODEL if COHERE_API_KEY else (OPENAI_MODEL if OPENAI_API_KEY else None),
-        },
         "default_language": DEFAULT_LANGUAGE,
         "default_translation_id": DEFAULT_TRANSLATION_ID,
     }
@@ -665,11 +542,6 @@ async def tafsir_by_ayah(
     bundle = await get_tafsir(surah, ayah, tafsir_id, translation_id)
     if not bundle.get("tafsir_text") and not bundle.get("ayah_arabic"):
         raise HTTPException(status_code=404, detail="Data tafsir tidak ditemukan di Quran.com API.")
-    if summarize and bundle.get("tafsir_text"):
-        summary, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], DEFAULT_LANGUAGE)
-        bundle["summary"] = summary
-        if ai_error:
-            bundle["ai_error"] = ai_error
     return bundle
 
 
@@ -752,29 +624,20 @@ async def chat(req: ChatRequest):
             )
 
         answer = bundle["tafsir_text"]
-        ai_error = None
-        ai_used = False
-        if bundle.get("tafsir_text"):
-            translated, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], req.language)
-            if not ai_error:
-                answer = translated
-                ai_used = True
-        else:
-            ai_error = "Teks tafsir kosong, AI tidak dapat menjelaskan"
+        if not answer:
+            return ChatResponse(
+                answer="Teks tafsir tidak tersedia untuk ayat ini.",
+                type="not_found",
+                source_data=bundle,
+                from_api=True,
+            )
 
-        print(f"[CHAT] tafsir_id={req.tafsir_id} language={req.language} ai_used={ai_used} ai_error={ai_error}")
-
-        response_data: Dict[str, Any] = {
-            "answer": answer,
-            "type": "tafsir",
-            "source_data": bundle,
-            "from_api": True,
-            "ai_used": ai_used,
-        }
-        if ai_error:
-            response_data["ai_error"] = ai_error
-
-        return ChatResponse(**response_data)
+        return ChatResponse(
+            answer=answer,
+            type="tafsir",
+            source_data=bundle,
+            from_api=True,
+        )
 
     # Jika bukan referensi spesifik, lakukan pencarian tematik
     try:
