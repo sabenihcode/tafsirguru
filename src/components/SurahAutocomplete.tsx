@@ -49,16 +49,16 @@ export default function SurahAutocomplete({ chapters, value, onChange, placehold
       </button>
 
       {open && (
-        <div className="absolute z-20 mt-1 w-full overflow-hidden rounded-lg border border-emerald-100 bg-white shadow-lg sm:rounded-xl">
+        <div className="absolute z-30 w-full overflow-hidden rounded-lg border border-teal-700 bg-teal-600 shadow-xl sm:rounded-xl" style={{ bottom: 'calc(100% + 6px)' }}>
           <input
             autoFocus
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Cari surah…"
-            className="w-full border-b border-emerald-100 px-3 py-2.5 text-sm text-emerald-900 placeholder-emerald-300 focus:outline-none sm:px-3.5 sm:text-base"
+            className="w-full border-b border-teal-500 bg-teal-700 px-3 py-2.5 text-sm text-white placeholder-teal-200 focus:outline-none focus:bg-teal-800 sm:px-3.5 sm:text-base"
           />
-          <div className="max-h-44 overflow-y-auto sm:max-h-52">
+          <div className="max-h-48 overflow-y-auto sm:max-h-56">
             {filtered.map((c) => (
               <button
                 key={c.id}
@@ -68,16 +68,16 @@ export default function SurahAutocomplete({ chapters, value, onChange, placehold
                   setQuery("");
                   setOpen(false);
                 }}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-emerald-50 sm:px-3.5 sm:py-2.5 sm:text-base"
+                className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm text-white transition hover:bg-teal-500 sm:px-3.5 sm:py-3 sm:text-base"
               >
-                <span className="text-emerald-900">
+                <span className="font-medium text-white">
                   {c.id}. {c.name_simple}
                 </span>
-                <span className="font-arabic text-emerald-600">{c.name_arabic}</span>
+                <span className="font-arabic text-teal-100">{c.name_arabic}</span>
               </button>
             ))}
             {filtered.length === 0 && (
-              <p className="px-3 py-2 text-xs text-emerald-400 sm:px-3.5 sm:py-2.5 sm:text-sm">Surah tidak ditemukan</p>
+              <p className="px-3 py-2.5 text-xs text-teal-100 sm:px-3.5 sm:py-3 sm:text-sm">Surah tidak ditemukan</p>
             )}
           </div>
         </div>
