@@ -504,7 +504,7 @@ async def _call_openai(messages: List[Dict[str, str]]) -> str:
 
 
 async def _call_cohere(messages: List[Dict[str, str]]) -> str:
-    async with httpx.AsyncClient(timeout=10.0) as client:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         payload = {
             "model": COHERE_MODEL,
             "messages": messages,
@@ -523,13 +523,21 @@ async def _call_cohere(messages: List[Dict[str, str]]) -> str:
             )
             print(f"[COHERE] Response status={r.status_code}")
             if r.status_code >= 400:
-                print(f"[COHERE] Error body: {r.text[:500]}")
+                print(f"[COHERE] Error body: {r.text[:1000]}")
             r.raise_for_status()
             data = r.json()
             print(f"[COHERE] Response keys={list(data.keys())}")
-            return data["message"]["content"][0]["text"]
+            if "message" not in data:
+                raise ValueError(f"Unexpected Cohere response: {list(data.keys())}")
+            content = data["message"].get("content", [])
+            if not content or not isinstance(content, list):
+                raise ValueError(f"Empty content in Cohere response: {content}")
+            return content[0].get("text", "")
         except httpx.TimeoutException:
-            print("[COHERE] Timeout 10 detik")
+            print("[COHERE] Timeout 30 detik")
+            raise
+        except Exception as exc:
+            print(f"[COHERE] Exception: {exc}")
             raise
 
 
@@ -574,6 +582,7 @@ class ChatResponse(BaseModel):
     type: str
     source_data: Dict[str, Any]
     from_api: bool = True
+    ai_used: bool = False
     ai_error: Optional[str] = None
 
 
@@ -739,18 +748,23 @@ async def chat(req: ChatRequest):
 
         answer = bundle["tafsir_text"]
         ai_error = None
+        ai_used = False
         if bundle.get("tafsir_text"):
-            answer, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], req.language)
+            translated, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], req.language)
+            if not ai_error:
+                answer = translated
+                ai_used = True
         else:
             ai_error = "Teks tafsir kosong, AI tidak dapat menjelaskan"
 
-        print(f"[CHAT] tafsir_id={req.tafsir_id} language={req.language} ai_error={ai_error}")
+        print(f"[CHAT] tafsir_id={req.tafsir_id} language={req.language} ai_used={ai_used} ai_error={ai_error}")
 
         response_data: Dict[str, Any] = {
             "answer": answer,
             "type": "tafsir",
             "source_data": bundle,
             "from_api": True,
+            "ai_used": ai_used,
         }
         if ai_error:
             response_data["ai_error"] = ai_error
