@@ -172,6 +172,7 @@ export async function chatWithBot(
   answer: string;
   type: "tafsir" | "search" | "not_found" | "error";
   source_data: TafsirData | { query: string; results: SearchResult[]; total: number };
+  ai_used?: boolean;
   ai_error?: string;
 }> {
   if (USE_BACKEND) {
