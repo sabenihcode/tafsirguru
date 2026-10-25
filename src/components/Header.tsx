@@ -16,7 +16,7 @@ export default function Header() {
         </div>
         <div className="hidden items-center gap-1 rounded-full bg-emerald-800 px-2 py-1 text-[10px] font-medium text-amber-300 sm:flex">
           <Wifi className="h-3 w-3" />
-          <span className="hidden sm:inline">Live from Quran.com API</span>
+          <span className="hidden sm:inline">Live</span>
         </div>
       </div>
     </header>
