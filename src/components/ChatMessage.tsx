@@ -25,7 +25,7 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
               <User className="h-3 w-3 sm:h-4 sm:w-4" />
             </div>
           ) : (
-            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-100 p-0.5 sm:h-8 sm:w-8 sm:p-1">
+            <div className="flex h-6 w-6 items-center justify-center overflow-hidden rounded-full bg-emerald-100 p-0.5 sm:h-8 sm:w-8 sm:p-1">
               <Logo className="h-full w-full" />
             </div>
           )}
