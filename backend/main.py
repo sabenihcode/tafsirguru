@@ -468,23 +468,28 @@ def validate_ref(surah: int, ayah: int):
 # LLM (opsional) - hanya untuk merapikan / menerjemahkan bahasa
 # ---------------------------------------------------------------------------
 def _llm_prompt(verse_key: str, tafsir_text: str, language: str) -> List[Dict[str, str]]:
-    target_lang = "Indonesia" if language.lower().startswith("id") else "English"
+    target_lang = "Bahasa Indonesia" if language.lower().startswith("id") else "English"
+    instruction = (
+        f"Anda adalah penerjemah dan penjelas tafsir Al-Qur'an. "
+        f"Tugas Anda adalah MENERJEMAHKAN dan MENJELASKAN teks tafsir berikut ke dalam {target_lang}. "
+        f"Jawaban HARUS seluruhnya dalam {target_lang}, bukan dalam bahasa lain. "
+        f"Gunakan bahasa yang sopan, mudah dipahami, dan sesuai dengan gaya penjelasan agama Islam. "
+        f"JANGAN menambahkan informasi baru, hadis, riwayat, atau penafsiran yang tidak ada dalam teks. "
+        f"JANGAN mengubah makna. Pertahankan struktur penjelasan sesuai urutan teks asli."
+    )
+    if language.lower().startswith("id"):
+        instruction += (
+            " Contoh gaya jawaban yang benar: 'Ayat ini menjelaskan bahwa...' atau 'Menurut tafsir, maknanya adalah...'. "
+            "Pastikan semua kata, kalimat, dan istilah asing (seperti nama orang atau tempat) diterjemahkan atau disesuaikan dengan ejaan Indonesia yang umum."
+        )
     return [
         {
             "role": "system",
-            "content": (
-                f"Kamu adalah asisten tafsir Al-Qur'an. Tugasmu menjelaskan/"
-                f"merangkum teks tafsir yang diberikan user dengan bahasa {target_lang} "
-                f"yang mudah dipahami. "
-                "PENTING: Kamu HANYA boleh menggunakan informasi yang ada di "
-                "teks tafsir tersebut. JANGAN menambahkan pengetahuan baru, "
-                "hadis, riwayat, atau penafsiran di luar teks. "
-                "Jika teks kosong, katakan bahwa data tafsir tidak tersedia."
-            ),
+            "content": instruction,
         },
         {
             "role": "user",
-            "content": f"Jelaskan tafsir berikut untuk ayat {verse_key} dalam bahasa {target_lang} yang sederhana:\n\n{tafsir_text[:8000]}",
+            "content": f"Terjemahkan dan jelaskan tafsir berikut untuk ayat {verse_key} ke dalam {target_lang}:\n\n{tafsir_text[:8000]}",
         },
     ]
 
