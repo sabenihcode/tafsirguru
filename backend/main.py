@@ -499,17 +499,27 @@ async def _call_openai(messages: List[Dict[str, str]]) -> str:
 
 
 async def _call_cohere(messages: List[Dict[str, str]]) -> str:
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        payload = {
+            "model": COHERE_MODEL,
+            "messages": messages,
+            "temperature": 0.2,
+            "max_tokens": 2048,
+        }
+        print(f"[COHERE] Request model={COHERE_MODEL}")
         r = await client.post(
             f"{COHERE_BASE_URL}/chat",
             headers={
                 "Authorization": f"Bearer {COHERE_API_KEY}",
                 "Content-Type": "application/json",
             },
-            json={"model": COHERE_MODEL, "messages": messages, "temperature": 0.2},
+            json=payload,
         )
+        print(f"[COHERE] Response status={r.status_code}")
         r.raise_for_status()
-        return r.json()["message"]["content"][0]["text"]
+        data = r.json()
+        print(f"[COHERE] Response keys={list(data.keys())}")
+        return data["message"]["content"][0]["text"]
 
 
 async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEFAULT_LANGUAGE) -> Tuple[str, Optional[str]]:
@@ -517,6 +527,7 @@ async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEF
     Merangkum/menerjemahkan tafsir menggunakan LLM.
     Mengembalikan tuple (text, error_message).
     """
+    print(f"[SUMMARIZE] verse={verse_key} language={language} text_len={len(tafsir_text)} cohere={bool(COHERE_API_KEY)} openai={bool(OPENAI_API_KEY)}")
     if not tafsir_text:
         return tafsir_text, None
     if not COHERE_API_KEY and not OPENAI_API_KEY:
@@ -524,10 +535,15 @@ async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEF
     messages = _llm_prompt(verse_key, tafsir_text, language)
     try:
         if COHERE_API_KEY:
-            return await _call_cohere(messages), None
+            result = await _call_cohere(messages)
+            print(f"[SUMMARIZE] Cohere success result_len={len(result)}")
+            return result, None
         if OPENAI_API_KEY:
-            return await _call_openai(messages), None
+            result = await _call_openai(messages)
+            print(f"[SUMMARIZE] OpenAI success result_len={len(result)}")
+            return result, None
     except Exception as exc:
+        print(f"[SUMMARIZE] Error: {exc}")
         # Jika LLM gagal, tetap kembalikan teks asli dari API
         return tafsir_text, f"AI gagal: {exc}"
     return tafsir_text, "AI provider tidak dikonfigurasi"
@@ -714,6 +730,10 @@ async def chat(req: ChatRequest):
         ai_error = None
         if bundle.get("tafsir_text"):
             answer, ai_error = await summarize_tafsir(bundle["tafsir_text"], bundle["verse_key"], req.language)
+        else:
+            ai_error = "Teks tafsir kosong, AI tidak dapat menjelaskan"
+
+        print(f"[CHAT] tafsir_id={req.tafsir_id} language={req.language} ai_error={ai_error}")
 
         response_data: Dict[str, Any] = {
             "answer": answer,
