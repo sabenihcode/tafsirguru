@@ -374,8 +374,13 @@ async def get_tafsir(
 ) -> Dict[str, Any]:
     """Wrapper async untuk fetch_tafsir_bundle agar tidak memblok event loop."""
     try:
-        raw = await asyncio.to_thread(fetch_tafsir_bundle, surah, ayah, tafsir_id, translation_id)
+        raw = await asyncio.wait_for(
+            asyncio.to_thread(fetch_tafsir_bundle, surah, ayah, tafsir_id, translation_id),
+            timeout=8.0,
+        )
         return json.loads(raw)
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout mengambil tafsir dari Quran.com API")
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Gagal mengambil tafsir: {exc}")
 
@@ -499,27 +504,33 @@ async def _call_openai(messages: List[Dict[str, str]]) -> str:
 
 
 async def _call_cohere(messages: List[Dict[str, str]]) -> str:
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         payload = {
             "model": COHERE_MODEL,
             "messages": messages,
-            "temperature": 0.2,
+            "temperature": 0.1,
             "max_tokens": 2048,
         }
         print(f"[COHERE] Request model={COHERE_MODEL}")
-        r = await client.post(
-            f"{COHERE_BASE_URL}/chat",
-            headers={
-                "Authorization": f"Bearer {COHERE_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-        print(f"[COHERE] Response status={r.status_code}")
-        r.raise_for_status()
-        data = r.json()
-        print(f"[COHERE] Response keys={list(data.keys())}")
-        return data["message"]["content"][0]["text"]
+        try:
+            r = await client.post(
+                f"{COHERE_BASE_URL}/chat",
+                headers={
+                    "Authorization": f"Bearer {COHERE_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+            )
+            print(f"[COHERE] Response status={r.status_code}")
+            if r.status_code >= 400:
+                print(f"[COHERE] Error body: {r.text[:500]}")
+            r.raise_for_status()
+            data = r.json()
+            print(f"[COHERE] Response keys={list(data.keys())}")
+            return data["message"]["content"][0]["text"]
+        except httpx.TimeoutException:
+            print("[COHERE] Timeout 10 detik")
+            raise
 
 
 async def summarize_tafsir(tafsir_text: str, verse_key: str, language: str = DEFAULT_LANGUAGE) -> Tuple[str, Optional[str]]:
