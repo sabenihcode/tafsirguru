@@ -1,12 +1,7 @@
 @import "tailwindcss";
-@import url('https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&display=swap');
-
-@theme {
-  --font-arabic: 'Amiri', 'Scheherazade New', serif;
-}
 
 .font-arabic {
-  font-family: var(--font-arabic);
+  font-family: 'Amiri', 'Scheherazade New', serif;
 }
 
 body {
@@ -20,14 +15,16 @@ body {
   }
 }
 
-.tafsir-html h2 {
-  @apply mt-3 mb-2 text-base font-bold text-emerald-800;
-}
-.tafsir-html p {
-  @apply mb-3 leading-relaxed;
-}
-.tafsir-html blockquote {
-  @apply border-l-4 border-amber-300 pl-3 italic text-emerald-700;
+@layer utilities {
+  .tafsir-html h2 {
+    @apply mt-3 mb-2 text-base font-bold text-black;
+  }
+  .tafsir-html p {
+    @apply mb-3 leading-relaxed;
+  }
+  .tafsir-html blockquote {
+    @apply border-l-4 border-teal-600 bg-teal-50 pl-3 italic text-neutral-700;
+  }
 }
 
 @media (min-width: 640px) {
@@ -36,9 +33,6 @@ body {
   }
   .tafsir-html p {
     @apply mb-4;
-  }
-  .tafsir-html blockquote {
-    @apply border-l-4 pl-3;
   }
 }
 
