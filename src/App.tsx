@@ -69,7 +69,7 @@ export default function App() {
         type: res.type === "search" ? "search" : res.type === "not_found" ? "not_found" : res.type === "error" ? "error" : "tafsir",
         data: res.source_data,
         aiError: res.ai_error,
-        aiUsed: res.type === "tafsir" && !res.ai_error,
+        aiUsed: res.ai_used,
       });
     } catch (err: any) {
       finalize({
