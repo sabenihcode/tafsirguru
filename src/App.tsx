@@ -122,7 +122,7 @@ export default function App() {
           </div>
         )}
 
-        <div className="space-y-2 rounded-xl border border-emerald-100 bg-white p-2 shadow-lg sm:rounded-2xl sm:p-3">
+        <div className="space-y-3 rounded-none border-2 border-black bg-white p-3 shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:p-4">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-12">
             <div className="sm:col-span-7">
               <SurahAutocomplete
@@ -140,13 +140,13 @@ export default function App() {
                 value={ayahInput}
                 onChange={(e) => setAyahInput(e.target.value)}
                 placeholder="Ayat"
-                className="w-full rounded-lg border border-emerald-200 bg-white px-3 py-2.5 text-sm text-emerald-900 placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:rounded-xl sm:px-3.5 sm:text-base"
+                className="w-full rounded-none border-2 border-black bg-white px-3 py-2.5 text-sm font-medium text-black placeholder-neutral-400 focus:outline-none focus:bg-teal-50 sm:px-3.5 sm:text-base"
               />
               <button
                 type="button"
                 onClick={handleManualTafsir}
                 disabled={loading}
-                className="shrink-0 rounded-lg bg-emerald-700 px-3 py-2.5 text-sm font-medium text-white hover:bg-emerald-800 disabled:opacity-60 sm:rounded-xl sm:px-3.5 sm:text-base"
+                className="shrink-0 rounded-none border-2 border-black bg-teal-600 px-3 py-2.5 text-sm font-bold text-white shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] disabled:opacity-60 sm:px-3.5 sm:text-base"
               >
                 Tafsir
               </button>
@@ -165,13 +165,13 @@ export default function App() {
                 }
               }}
               placeholder="Tanyakan tafsir atau kata kunci…"
-              className="flex-1 rounded-lg border border-emerald-200 bg-white px-3.5 py-2.5 text-sm text-emerald-900 placeholder-emerald-300 focus:outline-none focus:ring-2 focus:ring-emerald-500 sm:rounded-xl sm:px-4 sm:py-3 sm:text-base"
+              className="flex-1 rounded-none border-2 border-black bg-white px-3.5 py-2.5 text-sm font-medium text-black placeholder-neutral-400 focus:outline-none focus:bg-teal-50 sm:px-4 sm:py-3 sm:text-base"
             />
             <button
               type="button"
               onClick={() => handleSend()}
               disabled={loading || !input.trim()}
-              className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-400 text-emerald-900 shadow-sm hover:bg-amber-300 disabled:opacity-60 sm:h-11 sm:w-11 sm:rounded-xl"
+              className="flex h-10 w-10 items-center justify-center rounded-none border-2 border-black bg-black text-white shadow-[2px_2px_0px_0px_rgba(13,148,136,1)] transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(13,148,136,1)] disabled:opacity-60 sm:h-11 sm:w-11"
             >
               <Send className="h-4 w-4" />
             </button>
@@ -179,21 +179,21 @@ export default function App() {
               type="button"
               onClick={clearMessages}
               title="Hapus percakapan"
-              className="flex h-10 w-10 items-center justify-center rounded-lg border border-emerald-200 bg-white text-emerald-700 hover:bg-emerald-50 sm:h-11 sm:w-11 sm:rounded-xl"
+              className="flex h-10 w-10 items-center justify-center rounded-none border-2 border-black bg-white text-black shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] sm:h-11 sm:w-11"
             >
               <RotateCcw className="h-4 w-4" />
             </button>
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-emerald-500 sm:text-sm">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <div className="flex items-center gap-1">
-                <BookOpen className="h-3 w-3" />
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t-2 border-dashed border-neutral-300 pt-2 text-xs font-bold text-black sm:text-sm">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <div className="flex items-center gap-1.5">
+                <BookOpen className="h-3.5 w-3.5 text-teal-600" />
                 <span>Tafsir:</span>
                 <select
                   value={selectedTafsirId}
                   onChange={(e) => setSelectedTafsirId(Number(e.target.value))}
-                  className="rounded border border-emerald-200 bg-white px-1 py-0.5 text-emerald-700 focus:outline-none"
+                  className="rounded-none border-2 border-black bg-white px-1.5 py-1 text-black focus:outline-none"
                 >
                   {tafsirs.map((t) => (
                     <option key={t.id} value={t.id}>
@@ -203,7 +203,7 @@ export default function App() {
                   {tafsirs.length === 0 && <option value={169}>Ibn Kathir (Abridged)</option>}
                 </select>
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
                 <span>Bahasa:</span>
                 <select
                   value={language}
@@ -212,14 +212,13 @@ export default function App() {
                     setLanguage(lang);
                     setApiLanguage(lang);
                   }}
-                  className="rounded border border-emerald-200 bg-white px-1 py-0.5 text-emerald-700 focus:outline-none"
+                  className="rounded-none border-2 border-black bg-white px-1.5 py-1 text-black focus:outline-none"
                 >
                   <option value="id">Indonesia</option>
                   <option value="en">English</option>
                 </select>
               </div>
             </div>
-            <span className="hidden sm:inline">Format: Surah [nama] ayat [nomor]</span>
           </div>
         </div>
       </main>
