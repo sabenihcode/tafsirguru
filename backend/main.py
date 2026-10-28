@@ -740,8 +740,26 @@ def extract_surah_ayah(question: str) -> Optional[Tuple[int, int]]:
         if sid:
             return sid, ayah
 
-    # Format nama surah + ayat: "Al-Baqarah 255" / "Baqarah:255"
-    m = re.search(r"([a-z][a-z\s\-']{2,})\s*[:\-]?\s*(\d+)", lo, re.IGNORECASE)
+    # Format: [nama surah] ayat [nomor]  (contoh: "alfatihah ayat 6")
+    m = re.search(r"([a-z][a-z\s\-']{1,30}?)\s+(?:ayat|verse)\s+(\d+)", lo, re.IGNORECASE)
+    if m:
+        name = m.group(1).strip()
+        ayah = int(m.group(2))
+        sid = name_to_number(name)
+        if sid:
+            return sid, ayah
+
+    # Format nama surah + ":" + nomor  (contoh: "al-baqarah:255")
+    m = re.search(r"([a-z][a-z\s\-']{1,30}?)\s*:\s*(\d+)", lo, re.IGNORECASE)
+    if m:
+        name = m.group(1).strip()
+        ayah = int(m.group(2))
+        sid = name_to_number(name)
+        if sid:
+            return sid, ayah
+
+    # Format nama surah + nomor  (contoh: "al baqarah 255")
+    m = re.search(r"([a-z][a-z\s\-']{1,30}?)\s+(\d+)", lo, re.IGNORECASE)
     if m:
         name = m.group(1).strip()
         ayah = int(m.group(2))
