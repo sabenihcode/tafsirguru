@@ -83,9 +83,15 @@ export default function App() {
         });
       }
     } catch (err: any) {
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Gagal terhubung ke server tafsir, coba lagi.";
+      console.error("[CHAT ERROR]", err?.response?.status, err?.response?.data, err?.message);
       finalize({
         role: "assistant",
-        content: err?.response?.data?.detail || "Gagal terhubung ke server tafsir, coba lagi.",
+        content: `⚠️ ${detail}`,
         type: "error",
       });
     } finally {
@@ -235,7 +241,6 @@ export default function App() {
                 </select>
               </div>
             </div>
-            <span className="hidden text-neutral-500 sm:inline">Format: Surah [nama] ayat [nomor]</span>
           </div>
         </div>
       </main>
