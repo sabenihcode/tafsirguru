@@ -800,6 +800,106 @@ def health():
     }
 
 
+@app.get("/api/diagnostics")
+async def diagnostics():
+    """Diagnostik lengkap: cek API key, model, dan koneksi ke API eksternal."""
+    result: Dict[str, Any] = {
+        "timestamp": datetime.utcnow().isoformat(),
+        "env": {
+            "GEMINI_API_KEY_set": bool(GEMINI_API_KEY),
+            "GEMINI_API_KEY_prefix": (GEMINI_API_KEY[:8] + "...") if GEMINI_API_KEY else None,
+            "GEMINI_API_KEY_length": len(GEMINI_API_KEY) if GEMINI_API_KEY else 0,
+            "GEMINI_MODEL_env": GEMINI_MODEL or None,
+            "resolved_model": _gemini_active_model,
+        },
+        "tests": {},
+    }
+
+    # Test 1: List model Gemini
+    if GEMINI_API_KEY:
+        try:
+            models = await asyncio.wait_for(
+                asyncio.to_thread(_list_gemini_models_sync), timeout=10.0
+            )
+            result["tests"]["gemini_list_models"] = {
+                "status": "OK",
+                "count": len(models),
+                "models": models[:15],
+            }
+        except Exception as exc:
+            result["tests"]["gemini_list_models"] = {"status": "FAIL", "error": str(exc)}
+    else:
+        result["tests"]["gemini_list_models"] = {
+            "status": "SKIP",
+            "error": "GEMINI_API_KEY tidak diset",
+        }
+
+    # Test 2: Generate content singkat
+    if GEMINI_API_KEY:
+        try:
+            started = datetime.utcnow()
+            reply = await asyncio.wait_for(
+                asyncio.to_thread(
+                    _call_gemini_sync,
+                    "Balas dengan satu kata: berhasil",
+                    "Test koneksi",
+                ),
+                timeout=15.0,
+            )
+            elapsed = (datetime.utcnow() - started).total_seconds()
+            result["tests"]["gemini_generate"] = {
+                "status": "OK",
+                "elapsed_seconds": round(elapsed, 2),
+                "reply": reply[:200],
+                "model_used": _gemini_active_model,
+            }
+        except Exception as exc:
+            result["tests"]["gemini_generate"] = {"status": "FAIL", "error": str(exc)[:500]}
+
+    # Test 3: MyMemory translate
+    try:
+        started = datetime.utcnow()
+        reply = await asyncio.wait_for(
+            asyncio.to_thread(_translate_mymemory_sync, "Allah states that He is truthful."), timeout=10.0
+        )
+        elapsed = (datetime.utcnow() - started).total_seconds()
+        result["tests"]["mymemory"] = {
+            "status": "OK",
+            "elapsed_seconds": round(elapsed, 2),
+            "reply": reply[:150],
+        }
+    except Exception as exc:
+        result["tests"]["mymemory"] = {"status": "FAIL", "error": str(exc)[:300]}
+
+    # Test 4: Quran.com API
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{QURAN_API_BASE}/chapters")
+            result["tests"]["quran_api"] = {
+                "status": "OK" if r.status_code == 200 else "FAIL",
+                "status_code": r.status_code,
+                "chapters": len(r.json().get("chapters", [])) if r.status_code == 200 else 0,
+            }
+    except Exception as exc:
+        result["tests"]["quran_api"] = {"status": "FAIL", "error": str(exc)[:300]}
+
+    # Test 5: List tafsir yang diizinkan
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{QURAN_API_BASE}/resources/tafsirs")
+            all_t = r.json().get("tafsirs", [])
+            allowed = [t for t in all_t if t.get("id") in ALLOWED_TAFSIR_IDS]
+            result["tests"]["tafsirs"] = {
+                "status": "OK",
+                "total_available": len(all_t),
+                "allowed_found": [{"id": t["id"], "name": t["name"]} for t in allowed],
+            }
+    except Exception as exc:
+        result["tests"]["tafsirs"] = {"status": "FAIL", "error": str(exc)[:300]}
+
+    return result
+
+
 @app.get("/api/chapters")
 def chapters():
     data = _load_chapters_sync()
