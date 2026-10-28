@@ -11,12 +11,12 @@ const USE_BACKEND = USE_BACKEND_RAW || Boolean(API_BASE);
 // Kalau API_BASE kosong atau hanya "/api", endpoint dipanggil dengan path absolut agar tidak double prefix.
 const backendClient = axios.create({
   baseURL: API_BASE.startsWith("http") ? API_BASE : undefined,
-  timeout: 10000,
+  timeout: 45000,
 });
 
 const quranClient = axios.create({
   baseURL: QURAN_API,
-  timeout: 10000,
+  timeout: 15000,
 });
 
 // Endpoint backend selalu diawali /api sesuai definisi FastAPI.
