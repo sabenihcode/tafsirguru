@@ -25,7 +25,6 @@
       ]
     }
   ],
-  "installCommand": "pip install -r requirements.txt && npm install",
   "buildCommand": "VITE_USE_BACKEND=true npm run build",
   "outputDirectory": "dist",
   "framework": "vite"
