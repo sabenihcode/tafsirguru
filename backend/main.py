@@ -1141,6 +1141,8 @@ def _is_synthesis_request(question: str) -> bool:
 
 def _build_synthesis_prompt(question: str, context: str) -> str:
     """Prompt khusus untuk membuat kesimpulan dari beberapa tafsir."""
+    if not context.strip():
+        context = question
     return (
         "Anda adalah seorang ahli tafsir Al-Qur'an yang besar. "
         "Tugas Anda adalah MENYUSUN KESIMPULAN dari beberapa teks tafsir yang diberikan user.\n\n"
@@ -1176,10 +1178,21 @@ async def ai_chat(req: AIChatRequest):
         )
 
     context = (req.context or "").strip()
-    is_synthesis = _is_synthesis_request(question) and bool(context)
+
+    # Kalau user paste teks panjang langsung di pesan (tanpa parameter context),
+    # ambil sebagai konteks dan sisakan perintahnya saja.
+    if not context and len(question) > 400:
+        paragraphs = question.split("\n\n")
+        long_parts = [p for p in paragraphs if len(p.strip()) > 400]
+        if long_parts:
+            context = "\n\n".join(long_parts)[:12000]
+            short_parts = [p for p in paragraphs if len(p.strip()) <= 400]
+            question = "\n\n".join(short_parts).strip() or "Tolong analisis teks tafsir di atas."
+
+    is_synthesis = _is_synthesis_request(question) or _is_synthesis_request(req.question)
 
     if is_synthesis:
-        system_prompt = _build_synthesis_prompt(question, context)
+        system_prompt = _build_synthesis_prompt(question, context or req.question)
         user_content = "Tulfill permintaan kesimpulan di atas."
     else:
         system_prompt = (
