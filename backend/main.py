@@ -411,10 +411,13 @@ _gemini_active_model: Optional[str] = None
 
 # Urutan fallback model ( terbaru lebih dulu)
 GEMINI_MODEL_FALLBACKS = [
-    "gemini-2.0-flash",
-    "gemini-2.5-flash",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash-lite",
     "gemini-2.0-flash-lite",
     "gemini-flash-latest",
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-3-flash-preview",
     "gemini-pro-latest",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
@@ -460,7 +463,7 @@ def _resolve_gemini_model_sync() -> str:
         print(f"[GEMINI] Available models: {available[:10]}")
         for candidate in GEMINI_MODEL_FALLBACKS:
             for name in available:
-                if name == candidate or name.startswith(candidate):
+                if name == candidate:
                     _gemini_active_model = name
                     print(f"[GEMINI] Using model: {name}")
                     return _gemini_active_model
@@ -473,7 +476,7 @@ def _resolve_gemini_model_sync() -> str:
         print(f"[GEMINI] Failed to list models: {exc}")
 
     # 3. Fallback ke nama umum
-    _gemini_active_model = "gemini-2.0-flash"
+    _gemini_active_model = "gemini-flash-lite-latest"
     return _gemini_active_model
 
 
@@ -519,7 +522,7 @@ def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
             models_to_try.append(m)
 
     last_error = None
-    with httpx.Client(timeout=25.0) as client:
+    with httpx.Client(timeout=8.0) as client:
         for model in models_to_try:
             url = f"{GEMINI_API_BASE}/{model}:generateContent"
             try:
@@ -543,15 +546,28 @@ def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
                 global _gemini_active_model
                 _gemini_active_model = model
                 print(f"[GEMINI] Success with model: {model}")
-                return data["candidates"][0]["content"]["parts"][0]["text"]
-            except (KeyError, IndexError):
-                last_error = f"Format respons tidak dikenali: {str(data)[:200]}"
+                # Ekstrak teks dengan handling error lebih baik
+                try:
+                    parts = data["candidates"][0]["content"]["parts"]
+                    texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
+                    if texts:
+                        return "".join(texts)
+                except (KeyError, IndexError, TypeError) as exc:
+                    last_error = f"Struktur respons tidak dikenali: {str(data)[:300]}"
+                    print(f"[GEMINI] {last_error}")
+                    continue
+                last_error = f"Teks kosong dalam respons: {str(data)[:300]}"
+                continue
+            except httpx.TimeoutException:
+                last_error = f"Timeout saat memanggil model {model}"
+                print(f"[GEMINI] {last_error}")
                 continue
             except Exception as exc:
-                last_error = str(exc)
+                last_error = f"{type(exc).__name__}: {exc}"
+                print(f"[GEMINI] {last_error}")
                 continue
 
-    raise RuntimeError(f"Gagal memanggil Gemini: {last_error}")
+    raise RuntimeError(f"Gagal memanggil Gemini: {last_error or 'tidak diketahui'}")
 
 
 # ---------------------------------------------------------------------------
@@ -844,7 +860,7 @@ async def diagnostics():
                     "Balas dengan satu kata: berhasil",
                     "Test koneksi",
                 ),
-                timeout=15.0,
+                timeout=20.0,
             )
             elapsed = (datetime.utcnow() - started).total_seconds()
             result["tests"]["gemini_generate"] = {
@@ -853,8 +869,18 @@ async def diagnostics():
                 "reply": reply[:200],
                 "model_used": _gemini_active_model,
             }
+        except asyncio.TimeoutError:
+            result["tests"]["gemini_generate"] = {
+                "status": "TIMEOUT",
+                "error": "Melebihi 20 detik - kemungkinan timeout Vercel Hobby (10 detik)",
+                "model_used": _gemini_active_model,
+            }
         except Exception as exc:
-            result["tests"]["gemini_generate"] = {"status": "FAIL", "error": str(exc)[:500]}
+            result["tests"]["gemini_generate"] = {
+                "status": "FAIL",
+                "error": f"{type(exc).__name__}: {exc}"[:500],
+                "model_used": _gemini_active_model,
+            }
 
     # Test 3: MyMemory translate
     try:
