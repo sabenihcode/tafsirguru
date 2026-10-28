@@ -179,6 +179,14 @@ export async function translateToIndonesian(text: string): Promise<string> {
   throw new Error("Fitur translate memerlukan backend");
 }
 
+export async function aiChat(question: string): Promise<{ answer: string }> {
+  if (USE_BACKEND) {
+    const res = await backendClient.post(`${API_PREFIX}/ai-chat`, { question });
+    return res.data;
+  }
+  throw new Error("Fitur AI chat memerlukan backend");
+}
+
 export async function chatWithBot(
   question: string,
   tafsirId: number,
