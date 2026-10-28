@@ -1117,11 +1117,50 @@ async def translate_test(q: str = Query(..., min_length=1)):
 
 class AIChatRequest(BaseModel):
     question: str = Field(..., min_length=1, description="Pertanyaan untuk AI assistant")
+    context: Optional[str] = Field(None, description="Konteks tambahan (mis. teks tafsir yang disalin)")
 
 
 class AIChatResponse(BaseModel):
     answer: str
     from_api: bool = True
+
+
+# Kata kunci yang menandakan user meminta analisis banding/sintesis beberapa tafsir
+SYNTHESIS_KEYWORDS = [
+    "kesimpulan", "kesimpul", "sintesis", "bandingkan", "bandingan", "perbandingan",
+    "dari 2 tafsir", "dari dua tafsir", "2 tafsir", "dua tafsir",
+    "gabungkan", "gabungan", "gabungkan tafsir", "merangkum tafsir",
+    "apa persamaan", "apa perbedaan", "bandingkan tafsir",
+]
+
+
+def _is_synthesis_request(question: str) -> bool:
+    q = question.lower()
+    return any(k in q for k in SYNTHESIS_KEYWORDS)
+
+
+def _build_synthesis_prompt(question: str, context: str) -> str:
+    """Prompt khusus untuk membuat kesimpulan dari beberapa tafsir."""
+    return (
+        "Anda adalah seorang ahli tafsir Al-Qur'an yang besar. "
+        "Tugas Anda adalah MENYUSUN KESIMPULAN dari beberapa teks tafsir yang diberikan user.\n\n"
+        "CATATAN PENTING: Anda WAJIB hanya merujuk pada teks tafsir yang disertakan. "
+        "Jangan menambahkan hadis, riwayat, atau penafsiran dari luar teks tersebut.\n\n"
+        "ATURAN:\n"
+        "1. WAJIB merujuk hanya pada teks tafsir yang diberikan (Teks Tafsir di bawah). "
+        "JANGAN menambahkan hadis, riwayat, atau penafsiran dari luar teks.\n"
+        "2. Jawabannya HARUS dalam Bahasa Indonesia yang jelas dan terstruktur.\n"
+        "3. Gunakan format:\n"
+        "   - **Kesimpulan Utama**: 1-2 kalimat inti yang disepakati semua tafsir.\n"
+        "   - **Titik-Titik Kesamaan**: apa yang sama atau tema bersama antara tafsir yang diberikan.\n"
+        "   - **Perbedaan/Pembeda**: jika ada perbedaan sudut pandang, sebutkan secara hormat.\n"
+        "   - **Penjelasan Singular** (opsional): poin unik dari masing-masing tafsir.\n"
+        "4. Tulis dengan bahasa yang santun dan akademis, tidak menggurui.\n"
+        "5. Gunakan markdown simple (bold dan bullet list).\n\n"
+        f"=== Tafsir yang diberikan ===\n{context[:12000]}\n\n"
+        f"=== Permintaan user ===\n{question}\n\n"
+        "=== Tulis kesimpulanmu sekarang ==="
+    )
 
 
 @app.post("/api/ai-chat", response_model=AIChatResponse)
@@ -1136,23 +1175,80 @@ async def ai_chat(req: AIChatRequest):
             from_api=True,
         )
 
-    system_prompt = (
-        "Anda adalah asisten tafsir Al-Qur'an yang membantu user memahami, "
-        "menerjemahkan, atau meringkas teks tafsir. "
-        "Jawaban HARUS dalam Bahasa Indonesia. "
-        "JANGAN menambahkan informasi baru di luar teks yang diberikan user. "
-        "Jika user meminta terjemahan, terjemahkan dengan bahasa yang sopan dan mudah dipahami. "
-        "Jika user meminta penjelasan/ringkasan, jelaskan berdasarkan teks yang diberikan saja."
-    )
+    context = (req.context or "").strip()
+    is_synthesis = _is_synthesis_request(question) and bool(context)
 
-    try:
-        answer = await asyncio.wait_for(
-            asyncio.to_thread(_call_gemini_sync, system_prompt, question),
-            timeout=20.0,
+    if is_synthesis:
+        system_prompt = _build_synthesis_prompt(question, context)
+        user_content = "Tulfill permintaan kesimpulan di atas."
+    else:
+        system_prompt = (
+            "Anda adalah asisten tafsir Al-Qur'an yang membantu user memahami, "
+            "menerjemahkan, atau meringkas teks tafsir. "
+            "Jawaban HARUS dalam Bahasa Indonesia. "
+            "JANGAN menambahkan informasi baru di luar teks yang diberikan user. "
+            "Jika user meminta terjemahan, terjemahkan dengan bahasa yang sopan dan mudah dipahami. "
+            "Jika user meminta penjelasan/ringkasan, jelaskan berdasarkan teks yang diberikan saja."
         )
-        return AIChatResponse(answer=answer)
-    except asyncio.TimeoutError:
-        return AIChatResponse(answer="AI timeout, coba lagi dengan teks yang lebih pendah.")
+        user_content = question
+        if context:
+            user_content = f"TEKS TAFSIR:\n{context[:12000]}\n\nPERMINTAAN:\n{question}"
+
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": f"{system_prompt}\n\n{user_content}"}],
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.3,
+            "maxOutputTokens": 2048,
+        },
+    }
+
+    models_to_try: List[str] = []
+    resolved = _resolve_gemini_model_sync()
+    if resolved:
+        models_to_try.append(resolved)
+    for m in GEMINI_MODEL_FALLBACKS:
+        if m not in models_to_try:
+            models_to_try.append(m)
+
+    last_error = None
+    try:
+        with httpx.Client(timeout=8.0) as client:
+            for model in models_to_try:
+                url = f"{GEMINI_API_BASE}/{model}:generateContent"
+                try:
+                    r = client.post(
+                        url,
+                        headers={
+                            "x-goog-api-key": GEMINI_API_KEY,
+                            "Content-Type": "application/json",
+                        },
+                        json=payload,
+                    )
+                    if r.status_code == 404:
+                        last_error = f"Model {model} not found"
+                        continue
+                    if r.status_code >= 400:
+                        last_error = f"Gemini API error {r.status_code}: {r.text[:200]}"
+                        print(f"[AI CHAT] {last_error}")
+                        continue
+                    data = r.json()
+                    global _gemini_active_model
+                    _gemini_active_model = model
+                    parts = data["candidates"][0]["content"]["parts"]
+                    texts = [p.get("text", "") for p in parts if isinstance(p, dict) and p.get("text")]
+                    if texts:
+                        return AIChatResponse(answer="".join(texts))
+                    last_error = "Teks kosong dalam respons"
+                except Exception as exc:
+                    last_error = f"{type(exc).__name__}: {exc}"
+                    continue
+
+        return AIChatResponse(answer=f"AI gagal merespons: {last_error or 'tidak diketahui'}")
     except Exception as exc:
         import traceback
         print(f"[AI CHAT ERROR] {exc}\n{traceback.format_exc()}")
