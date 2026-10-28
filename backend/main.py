@@ -413,7 +413,7 @@ _gemini_active_model: Optional[str] = None
 GEMINI_MODEL_FALLBACKS = [
     "gemini-2.0-flash",
     "gemini-2.5-flash",
-    "gemini-2.5-flash-lite",
+    "gemini-2.0-flash-lite",
     "gemini-flash-latest",
     "gemini-pro-latest",
     "gemini-1.5-flash",
@@ -557,11 +557,30 @@ def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
 # ---------------------------------------------------------------------------
 # Translation providers (multi-provider dengan fallback)
 # ---------------------------------------------------------------------------
+def _detect_language(text: str) -> str:
+    """Deteksi bahasa sederhana: 'ar' jika banyak karakter Arab, selain itu 'en'."""
+    arabic_chars = sum(1 for c in text if "\u0600" <= c <= "\u06FF")
+    total_letters = sum(1 for c in text if c.isalpha())
+    if total_letters == 0:
+        return "en"
+    if arabic_chars / total_letters > 0.3:
+        return "ar"
+    return "en"
+
+
+def _looks_arabic(text: str) -> bool:
+    """Cek apakah teks masih mengandung karakter Arab yang dominan."""
+    arabic_chars = sum(1 for c in text if "\u0600" <= c <= "\u06FF")
+    latin_chars = sum(1 for c in text if c.isascii() and c.isalpha())
+    return arabic_chars > latin_chars
+
+
 def _translate_mymemory_sync(text: str) -> str:
     """MyMemory API - gratis, limit ~1000 kata/hari untuk unauthenticated."""
     import urllib.parse
+    src = _detect_language(text)
     encoded = urllib.parse.quote(text)
-    url = f"https://api.mymemory.translated.net/get?q={encoded}&langpair=en|id"
+    url = f"https://api.mymemory.translated.net/get?q={encoded}&langpair={src}|id"
     with httpx.Client(timeout=10.0) as client:
         r = client.get(url)
         r.raise_for_status()
@@ -571,6 +590,9 @@ def _translate_mymemory_sync(text: str) -> str:
         translated = data["responseData"]["translatedText"]
         if data.get("quotaFinished"):
             raise RuntimeError("MyMemory quota finished")
+        # MyMemory kadang mengembalikan teks asli (tidak diterjemahkan)
+        if translated.strip() == text.strip():
+            raise RuntimeError("MyMemory tidak menerjemahkan (mengembalikan teks asli)")
         return translated
 
 
@@ -620,29 +642,42 @@ def translate_to_indonesian_sync(text: str) -> str:
         if current:
             chunks.append(current)
 
+    source_lang = _detect_language(stripped)
+    is_arabic_source = source_lang == "ar"
+
     translated_parts: List[str] = []
     for chunk in chunks:
         last_error = None
-        # Provider 1: MyMemory (gratis, cepat untuk teks pendek)
-        try:
-            translated_parts.append(_translate_mymemory_sync(chunk))
-            continue
-        except Exception as exc:
-            print(f"[TRANSLATE] MyMemory failed: {exc}")
-            last_error = exc
-
-        # Provider 2: Gemini (butuh API key, kualitas terbaik)
+        # Provider 1: Gemini (kualitas terbaik, wajib untuk teks Arab)
         if GEMINI_API_KEY:
             try:
-                translated_parts.append(_translate_gemini_sync(chunk))
+                result = _translate_gemini_sync(chunk)
+                # Validasi: untuk teks Arab, hasil harus dominan Latin
+                if is_arabic_source and _looks_arabic(result):
+                    raise RuntimeError("Gemini tidak menerjemahkan teks Arab")
+                translated_parts.append(result)
                 continue
             except Exception as exc:
                 print(f"[TRANSLATE] Gemini failed: {exc}")
                 last_error = exc
 
+        # Provider 2: MyMemory (gratis, cepat untuk teks pendek non-Arab)
+        try:
+            result = _translate_mymemory_sync(chunk)
+            if is_arabic_source and _looks_arabic(result):
+                raise RuntimeError("MyMemory tidak menerjemahkan teks Arab")
+            translated_parts.append(result)
+            continue
+        except Exception as exc:
+            print(f"[TRANSLATE] MyMemory failed: {exc}")
+            last_error = exc
+
         # Provider 3: deep-translator Google
         try:
-            translated_parts.append(_translate_google_deep_translator(chunk))
+            result = _translate_google_deep_translator(chunk)
+            if is_arabic_source and _looks_arabic(result):
+                raise RuntimeError("deep-translator tidak menerjemahkan teks Arab")
+            translated_parts.append(result)
             continue
         except Exception as exc:
             print(f"[TRANSLATE] deep-translator failed: {exc}")
@@ -802,8 +837,29 @@ async def tafsir_by_ayah(
     translation_id: int = Query(DEFAULT_TRANSLATION_ID),
     summarize: bool = Query(False, description="Gunakan LLM untuk merangkum bahasa"),
 ):
-    validate_ref(surah, ayah)
-    bundle = await get_tafsir(surah, ayah, tafsir_id, translation_id)
+    try:
+        validate_ref(surah, ayah)
+    except HTTPException as exc:
+        return {
+            "error": exc.detail,
+            "status": "invalid_ref",
+            "surah": surah,
+            "ayah": ayah,
+        }
+    try:
+        bundle = await get_tafsir(surah, ayah, tafsir_id, translation_id)
+    except HTTPException as exc:
+        return {
+            "error": exc.detail,
+            "status": "fetch_failed",
+            "surah": surah,
+            "ayah": ayah,
+            "surah_name": SURAH_NAMES.get(surah, ""),
+            "ayah_arabic": "",
+            "ayah_translation": "",
+            "tafsir_text": "",
+            "tafsir_source": "Quran.com",
+        }
     if not bundle.get("tafsir_text") and not bundle.get("ayah_arabic"):
         raise HTTPException(status_code=404, detail="Data tafsir tidak ditemukan di Quran.com API.")
     return bundle
