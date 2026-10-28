@@ -27,6 +27,40 @@ body {
   }
 }
 
+@layer components {
+  /* Styling untuk jawaban AI (markdown sudah di-clean di JS) */
+  .ai-answer h3 {
+    @apply mt-3 mb-2 text-base font-bold text-teal-800 first:mt-0;
+  }
+  .ai-answer strong {
+    @apply font-semibold text-teal-900;
+  }
+  .ai-answer em {
+    @apply italic;
+  }
+  .ai-answer code {
+    @apply rounded bg-teal-100 px-1 py-0.5 font-mono text-[0.9em] text-teal-900;
+  }
+  .ai-answer ul {
+    @apply mb-3 ml-4 list-disc space-y-1;
+  }
+  .ai-answer ol {
+    @apply mb-3 ml-4 list-decimal space-y-1;
+  }
+  .ai-answer li {
+    @apply leading-relaxed;
+  }
+  .ai-answer li::marker {
+    @apply text-teal-500;
+  }
+  .ai-answer blockquote {
+    @apply my-2 border-l-4 border-teal-400 bg-teal-50 py-1 pl-3 italic text-neutral-700;
+  }
+  .ai-answer hr {
+    @apply my-3 border-t border-teal-200;
+  }
+}
+
 @media (min-width: 640px) {
   .tafsir-html h2 {
     @apply mt-4 mb-3 text-lg;
