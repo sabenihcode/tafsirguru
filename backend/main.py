@@ -724,13 +724,7 @@ class TranslateRequest(BaseModel):
     text: str = Field(..., min_length=1, description="Teks yang akan diterjemahkan ke bahasa Indonesia")
 
 
-class TranslateResponse(BaseModel):
-    translated_text: str
-    source_language: str = "auto"
-    from_api: bool = True
-
-
-@app.post("/api/translate", response_model=TranslateResponse)
+@app.post("/api/translate")
 async def translate(req: TranslateRequest):
     text = req.text.strip()
     if not text:
@@ -740,12 +734,28 @@ async def translate(req: TranslateRequest):
             asyncio.to_thread(translate_to_indonesian_sync, text),
             timeout=8.0,
         )
-        return TranslateResponse(translated_text=translated)
+        return {"translated_text": translated, "source_language": "auto", "from_api": True}
     except asyncio.TimeoutError:
         raise HTTPException(status_code=504, detail="Timeout menerjemahkan teks")
     except Exception as exc:
         import traceback
-        print(f"[TRANSLATE ERROR] {exc}\n{traceback.format_exc()}")
+        print(f"[TRANSLATE POST ERROR] {exc}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=502, detail=f"Gagal menerjemahkan: {exc}")
+
+
+@app.get("/api/translate")
+async def translate_get(q: str = Query(..., min_length=1)):
+    try:
+        translated = await asyncio.wait_for(
+            asyncio.to_thread(translate_to_indonesian_sync, q),
+            timeout=8.0,
+        )
+        return {"translated_text": translated, "source_language": "auto", "from_api": True}
+    except asyncio.TimeoutError:
+        raise HTTPException(status_code=504, detail="Timeout menerjemahkan teks")
+    except Exception as exc:
+        import traceback
+        print(f"[TRANSLATE GET ERROR] {exc}\n{traceback.format_exc()}")
         raise HTTPException(status_code=502, detail=f"Gagal menerjemahkan: {exc}")
 
 
