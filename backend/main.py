@@ -402,19 +402,19 @@ def _truncate(text: str, max_len: int = 300) -> str:
 # ---------------------------------------------------------------------------
 # Translation providers (multi-provider dengan fallback)
 # ---------------------------------------------------------------------------
-async def _translate_mymemory(text: str) -> str:
+def _translate_mymemory_sync(text: str) -> str:
     """MyMemory API - gratis, limit ~1000 kata/hari untuk unauthenticated."""
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(
-            "https://api.mymemory.translated.net/get",
-            params={"q": text, "langpair": "en|id"},
-        )
+    import urllib.parse
+    encoded = urllib.parse.quote(text)
+    url = f"https://api.mymemory.translated.net/get?q={encoded}&langpair=en|id"
+    with httpx.Client(timeout=10.0) as client:
+        r = client.get(url)
         r.raise_for_status()
         data = r.json()
         if data.get("responseStatus") != 200:
             raise RuntimeError(f"MyMemory error: {data.get('responseDetails')}")
         translated = data["responseData"]["translatedText"]
-        if "quotaFinished" in data and data["quotaFinished"]:
+        if data.get("quotaFinished"):
             raise RuntimeError("MyMemory quota finished")
         return translated
 
@@ -426,14 +426,14 @@ def _translate_google_deep_translator(text: str) -> str:
     return translator.translate(text)
 
 
-async def translate_to_indonesian(text: str) -> str:
+def translate_to_indonesian_sync(text: str) -> str:
     """Menerjemahkan teks ke bahasa Indonesia dengan multi-provider fallback."""
     if not text:
         return text
 
     stripped = _strip_tags(text)
     # MyMemory punya batas panjang URL, split jika terlalu panjang
-    max_chunk = 2000
+    max_chunk = 1500
     if len(stripped) <= max_chunk:
         chunks = [stripped]
     else:
@@ -454,7 +454,7 @@ async def translate_to_indonesian(text: str) -> str:
         last_error = None
         # Provider 1: MyMemory
         try:
-            translated_parts.append(await _translate_mymemory(chunk))
+            translated_parts.append(_translate_mymemory_sync(chunk))
             continue
         except Exception as exc:
             print(f"[TRANSLATE] MyMemory failed: {exc}")
@@ -462,12 +462,7 @@ async def translate_to_indonesian(text: str) -> str:
 
         # Provider 2: deep-translator Google (fallback)
         try:
-            translated_parts.append(
-                await asyncio.wait_for(
-                    asyncio.to_thread(_translate_google_deep_translator, chunk),
-                    timeout=8.0,
-                )
-            )
+            translated_parts.append(_translate_google_deep_translator(chunk))
             continue
         except Exception as exc:
             print(f"[TRANSLATE] Google fallback failed: {exc}")
@@ -700,7 +695,7 @@ async def translate(req: TranslateRequest):
         raise HTTPException(status_code=400, detail="Teks tidak boleh kosong.")
     try:
         translated = await asyncio.wait_for(
-            asyncio.to_thread(translate_to_indonesian, text),
+            asyncio.to_thread(translate_to_indonesian_sync, text),
             timeout=8.0,
         )
         return TranslateResponse(translated_text=translated)
@@ -717,7 +712,7 @@ async def translate_test(q: str = Query(..., min_length=1)):
     """Endpoint untuk test translator langsung."""
     try:
         translated = await asyncio.wait_for(
-            asyncio.to_thread(translate_to_indonesian, q),
+            asyncio.to_thread(translate_to_indonesian_sync, q),
             timeout=8.0,
         )
         return {"success": True, "original": q, "translated": translated}
