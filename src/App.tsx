@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, RotateCcw, BookOpen, ClipboardPaste } from "lucide-react";
+import { Send, RotateCcw, BookOpen } from "lucide-react";
 import { useChatStore } from "@/store/useChatStore";
 import { fetchChapters, fetchTafsirs, fetchTranslations, chatWithBot, aiChat, initDefaults, setApiLanguage } from "@/services/api";
 import Header from "@/components/Header";
@@ -34,6 +34,32 @@ function collectTafsirContext(maxChars = 10000): string {
   return parts.join("\n\n").slice(0, maxChars);
 }
 
+/**
+ * Deteksi teks panjang yang dipaste user (kemungkinan tafsir) di dalam pesan.
+ * Teks dianggap konteks jika panjangnya > 400 karakter.
+ */
+function extractPastedContext(message: string, threshold = 400): string {
+  if (message.length <= threshold) return "";
+  // Ambil bagian terpanjang yang berulang (paragraf panjang)
+  const paragraphs = message.split(/\n{2,}/);
+  const longParagraphs = paragraphs.filter((p) => p.trim().length > threshold);
+  if (longParagraphs.length === 0) {
+    // Bisa juga satu blok besar tanpa baris kosong
+    return message.trim();
+  }
+  return longParagraphs.join("\n\n").trim();
+}
+
+/**
+ * Buang bagian teks konteks dari pesan, sisakan perintahnya saja.
+ */
+function removePastedContext(message: string, threshold = 400): string {
+  const paragraphs = message.split(/\n{2,}/);
+  const kept = paragraphs.filter((p) => p.trim().length <= threshold);
+  if (kept.length === 0) return message.trim();
+  return kept.join("\n\n").trim();
+}
+
 export default function App() {
   const {
     messages,
@@ -56,8 +82,6 @@ export default function App() {
   const [selectedSurah, setSelectedSurah] = useState<Chapter | null>(null);
   const [ayahInput, setAyahInput] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [showContext, setShowContext] = useState(false);
-  const [contextText, setContextText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -96,17 +120,12 @@ export default function App() {
 
     try {
       if (isAiChat) {
-        // Kumpulkan konteks: dari textarea manual + tafsir di pesan sebelumnya
-        const manual = contextText.trim();
+        // Konteks: tafsir yang otomatis terkumpul dari chat + teks panjang yang dipaste user
         const auto = collectTafsirContext();
-        const context = manual
-          ? `${manual}\n\n${auto}`.trim()
-          : auto;
-        const res = await aiChat(question, context);
-        if (manual) {
-          setContextText("");
-          setShowContext(false);
-        }
+        const pasted = extractPastedContext(question);
+        const context = pasted || auto;
+        const cleanQuestion = pasted ? removePastedContext(question) : question;
+        const res = await aiChat(cleanQuestion, context);
         finalize({
           role: "assistant",
           content: res.answer,
@@ -209,46 +228,7 @@ export default function App() {
             </div>
           </div>
 
-          {showContext && (
-            <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-2.5">
-              <div className="mb-1.5 flex items-center justify-between">
-                <p className="text-xs font-medium text-teal-700">
-                  Konteks tafsir (paste di sini untuk dibandingkan)
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setContextText("");
-                    setShowContext(false);
-                  }}
-                  className="text-xs text-neutral-500 hover:text-neutral-700"
-                >
-                  Tutup
-                </button>
-              </div>
-              <textarea
-                value={contextText}
-                onChange={(e) => setContextText(e.target.value)}
-                placeholder="Paste teks tafsir di sini (boleh 2 tafsir atau lebih)...&#10;&#10;Contoh:&#10;--- Tafsir Ibn Kathir untuk ayat 2:255 ---&#10;[teks tafsir Ibn Kathir]&#10;&#10;--- Al-Qurtubi untuk ayat 2:255 ---&#10;[teks tafsir Al-Qurtubi]"
-                rows={4}
-                className="w-full rounded-lg border border-teal-200 bg-white px-3 py-2 text-xs text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:text-sm"
-              />
-            </div>
-          )}
-
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowContext((v) => !v)}
-              title="Tempel konteks tafsir untuk dibandingkan"
-              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition sm:h-11 sm:w-11 ${
-                showContext
-                  ? "border-teal-600 bg-teal-600 text-white"
-                  : "border-teal-200 bg-white text-teal-700 hover:bg-teal-50"
-              }`}
-            >
-              <ClipboardPaste className="h-4 w-4" />
-            </button>
             <input
               type="text"
               value={input}
@@ -259,7 +239,7 @@ export default function App() {
                   handleSend();
                 }
               }}
-              placeholder="Tanyakan tafsir, kata kunci, atau minta AI membandingkan 2 tafsir..."
+              placeholder="Tanyakan tafsir, tempel teks tafsir + perintah, atau kata kunci..."
               className="flex-1 rounded-xl border border-teal-200 bg-white px-3.5 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:px-4 sm:py-3 sm:text-base"
             />
             <button
@@ -283,7 +263,6 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-dashed border-teal-200 pt-2 text-xs text-black sm:text-sm">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <div className="flex items-center gap-1">
-                <BookOpen className="h-3 w-3 text-teal-600" />
                 <span>Tafsir:</span>
                 <select
                   value={selectedTafsirId}
