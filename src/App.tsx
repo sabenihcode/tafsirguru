@@ -205,7 +205,6 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-dashed border-teal-200 pt-2 text-xs text-black sm:text-sm">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <div className="flex items-center gap-1">
-                <BookOpen className="h-3 w-3 text-teal-600" />
                 <span>Tafsir:</span>
                 <select
                   value={selectedTafsirId}
