@@ -619,6 +619,18 @@ def _translate_gemini_sync(text: str) -> str:
     return _call_gemini_sync(system_prompt, text)
 
 
+def _limit_text(text: str, max_chars: int = 3000) -> str:
+    """Batasi panjang teks agar request AI tidak timeout."""
+    if len(text) <= max_chars:
+        return text
+    # Potong di batas kata terdekat
+    cut = text[:max_chars]
+    last_space = cut.rfind(" ")
+    if last_space > max_chars * 0.5:
+        cut = cut[:last_space]
+    return cut + " [...]"
+
+
 def translate_to_indonesian_sync(text: str) -> str:
     """Menerjemahkan teks ke bahasa Indonesia dengan multi-provider fallback."""
     if not text:
@@ -651,7 +663,7 @@ def translate_to_indonesian_sync(text: str) -> str:
         # Provider 1: Gemini (kualitas terbaik, wajib untuk teks Arab)
         if GEMINI_API_KEY:
             try:
-                result = _translate_gemini_sync(chunk)
+                result = _translate_gemini_sync(_limit_text(chunk, 3000))
                 # Validasi: untuk teks Arab, hasil harus dominan Latin
                 if is_arabic_source and _looks_arabic(result):
                     raise RuntimeError("Gemini tidak menerjemahkan teks Arab")
@@ -947,7 +959,7 @@ async def translate_get(q: str = Query(..., min_length=1)):
     try:
         translated = await asyncio.wait_for(
             asyncio.to_thread(translate_to_indonesian_sync, q),
-            timeout=8.0,
+            timeout=25.0,
         )
         return {"translated_text": translated, "source_language": "auto", "from_api": True}
     except asyncio.TimeoutError:
