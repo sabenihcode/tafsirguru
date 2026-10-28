@@ -165,7 +165,7 @@ export function extractSurahAyah(text: string): { surah: number; ayah: number } 
   const q = text.trim();
   const lo = q.toLowerCase();
 
-  // surah ... ayat ...
+  // surah ... ayat ...  (contoh: "surah al baqarah ayat 255")
   let m = lo.match(/(?:surah|sura|surat)\s+([\w\s\-']+?)\s+(?:ayat|verse)\s+(\d+)/i);
   if (m) {
     const surahPart = m[1].trim();
@@ -175,14 +175,28 @@ export function extractSurahAyah(text: string): { surah: number; ayah: number } 
     if (sid) return { surah: sid, ayah };
   }
 
-  // name + number
-  m = lo.match(/([a-z][a-z\s\-']{2,})\s*[:\-]?\s*(\d+)/i);
+  // [nama surah] ayat [nomor]  (contoh: "alfatihah ayat 6", "al baqarah ayat 255")
+  m = lo.match(/([a-z][a-z\s\-']{1,30}?)\s+(?:ayat|verse|ay-at)\s+(\d+)/i);
   if (m) {
     const sid = nameToSurahId(m[1].trim());
     if (sid) return { surah: sid, ayah: parseInt(m[2], 10) };
   }
 
-  // QS 2:255 / 2:255
+  // nama surah + ":" + nomor  (contoh: "al-baqarah:255")
+  m = lo.match(/([a-z][a-z\s\-']{1,30}?)\s*:\s*(\d+)/i);
+  if (m) {
+    const sid = nameToSurahId(m[1].trim());
+    if (sid) return { surah: sid, ayah: parseInt(m[2], 10) };
+  }
+
+  // nama surah + nomor  (contoh: "al baqarah 255")
+  m = lo.match(/([a-z][a-z\s\-']{1,30}?)\s+(\d+)/i);
+  if (m) {
+    const sid = nameToSurahId(m[1].trim());
+    if (sid) return { surah: sid, ayah: parseInt(m[2], 10) };
+  }
+
+  // QS 2:255 / 2:255 / 2 255
   m = lo.match(/(?:qs|q\.s\.?|quran\s+surah)?\s*(\d+)\s*[:\-\s]\s*(\d+)/i);
   if (m) return { surah: parseInt(m[1], 10), ayah: parseInt(m[2], 10) };
 
