@@ -780,6 +780,11 @@ def health():
         "status": "ok",
         "default_language": DEFAULT_LANGUAGE,
         "default_translation_id": DEFAULT_TRANSLATION_ID,
+        "ai": {
+            "gemini": bool(GEMINI_API_KEY),
+            "gemini_model": GEMINI_MODEL or "auto-detect",
+        },
+        "allowed_tafsirs": sorted(ALLOWED_TAFSIR_IDS),
     }
 
 
@@ -1036,7 +1041,16 @@ async def chat(req: ChatRequest):
             )
 
         translation_id = _translation_id_for_language(req.language)
-        bundle = await get_tafsir(surah, ayah, req.tafsir_id, translation_id)
+        try:
+            bundle = await get_tafsir(surah, ayah, req.tafsir_id, translation_id)
+        except HTTPException as exc:
+            return ChatResponse(
+                answer=f"Gagal mengambil tafsir: {exc.detail}",
+                type="error",
+                source_data={"surah": surah, "ayah": ayah, "error": exc.detail},
+                from_api=True,
+            )
+
         if not bundle.get("tafsir_text") and not bundle.get("ayah_arabic"):
             return ChatResponse(
                 answer="Tidak ditemukan hasil tafsir untuk ayat tersebut di Quran.com API.",
