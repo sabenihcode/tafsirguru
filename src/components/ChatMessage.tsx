@@ -97,10 +97,17 @@ function TranslateButton({ text, onTranslated }: { text: string; onTranslated: (
     setLoading(true);
     setError(null);
     try {
-      const translated = await import("@/services/api").then((m) => m.translateToIndonesian(text));
+      const truncated = text.length > 3000 ? text.slice(0, 3000) + " [...]" : text;
+      const translated = await import("@/services/api").then((m) => m.translateToIndonesian(truncated));
       onTranslated(translated);
     } catch (err: any) {
-      setError("Gagal menerjemahkan");
+      console.error("[TRANSLATE ERROR]", err?.response?.status, err?.response?.data, err?.message);
+      const detail =
+        err?.response?.data?.detail ||
+        err?.response?.data?.error ||
+        err?.message ||
+        "Gagal menerjemahkan";
+      setError(detail);
     } finally {
       setLoading(false);
     }
