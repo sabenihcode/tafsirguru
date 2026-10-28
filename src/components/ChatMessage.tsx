@@ -45,7 +45,14 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
           )}
 
           {(message.type === "text" || message.type === "error" || message.type === "not_found") && (
-            <div className="text-sm leading-relaxed whitespace-pre-wrap sm:text-base">{message.content}</div>
+            message.role === "assistant" ? (
+              <div
+                className="ai-answer text-sm leading-relaxed sm:text-base"
+                dangerouslySetInnerHTML={{ __html: renderAiAnswer(message.content) }}
+              />
+            ) : (
+              <div className="text-sm leading-relaxed whitespace-pre-wrap sm:text-base">{message.content}</div>
+            )
           )}
 
           {message.type === "loading" && (
@@ -62,6 +69,65 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
 
 function stripTags(html: string): string {
   return (html || "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Bersihkan markdown dari jawaban AI agar tampil lebih bersih:
+ * - Hapus simbol # di awal heading
+ * - Hapus simbol * / _ untuk bold & italic (ubah jadi bold/italic HTML)
+ * - Hapus backtick, > blockquote, dan karakter markdown lain
+ */
+function cleanAiMarkdown(text: string): string {
+  if (!text) return "";
+  let out = text;
+
+  // Heading: ### Teks -> <h3>Teks</h3>
+  out = out.replace(/^#{1,6}\s*(.+)$/gm, "<h3>$1</h3>");
+  // Bold: **teks** -> <strong>teks</strong>
+  out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  // Italic: *teks* atau _teks_ -> <em>teks</em>
+  out = out.replace(/(^|[\s(])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  out = out.replace(/(^|[\s(])_([^_\n]+)_/g, "$1<em>$2</em>");
+  // Bold dengan underline markdown: __teks__ -> <strong>teks</strong>
+  out = out.replace(/__([^_]+)__/g, "<strong>$1</strong>");
+  // Inline code: `teks` -> <code>teks</code>
+  out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
+  // Blockquote: > teks -> paragraf dengan border
+  out = out.replace(/^&gt;\s*(.+)$/gm, '<blockquote>$1</blockquote>');
+  out = out.replace(/^>\s*(.+)$/gm, '<blockquote>$1</blockquote>');
+  // Horizontal line --- -> <hr>
+  out = out.replace(/^\s*---+\s*$/gm, "<hr>");
+  // List item: - teks atau * teks (setelah bold/italic processing)
+  out = out.replace(/^\s*[-•]\s+(.+)$/gm, "<li>$1</li>");
+  // Numbered list: 1. teks
+  out = out.replace(/^\s*(\d+)\.\s+(.+)$/gm, "<li>$2</li>");
+  // Bungkus list dalam <ul>
+  out = out.replace(/(<li>[\s\S]*?<\/li>)(?!\s*<li>)/g, "<ul>$1</ul>");
+  out = out.replace(/(<\/ul>)(<li>)/g, "$1$2");
+
+  // Paragraf kosong Excess
+  out = out.replace(/\n{3,}/g, "\n\n");
+  return out.trim();
+}
+
+/** Escape HTML agar aman dari XSS saat merender markdown AI */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/** Render jawaban AI: bersihkan markdown lalu escape HTML (kecuali tag yang kita buat sendiri) */
+function renderAiAnswer(text: string): string {
+  const cleaned = cleanAiMarkdown(text);
+  // Escape dulu karakter berbahaya, lalu kembalikan tag HTML yang sah
+  const escaped = escapeHtml(cleaned);
+  return escaped
+    .replace(/&lt;(\/?)(h3|strong|em|code|blockquote|ul|ol|li|hr|br|p)([^&]*?)&gt;/g, "<$1$2$3>")
+    .replace(/&lt;br\s*\/?&gt;/g, "<br>");
 }
 
 function CopyButton({ text }: { text: string }) {
