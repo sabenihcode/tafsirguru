@@ -1,11 +1,38 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, RotateCcw, BookOpen } from "lucide-react";
+import { Send, RotateCcw, BookOpen, ClipboardPaste } from "lucide-react";
 import { useChatStore } from "@/store/useChatStore";
 import { fetchChapters, fetchTafsirs, fetchTranslations, chatWithBot, aiChat, initDefaults, setApiLanguage } from "@/services/api";
 import Header from "@/components/Header";
 import ChatMessage from "@/components/ChatMessage";
 import SurahAutocomplete from "@/components/SurahAutocomplete";
 import type { Chapter } from "@/store/useChatStore";
+
+/**
+ * Kumpulkan teks tafsir dari pesan-pesan sebelumnya agar AI bisa
+ * merujuk/membandingkan beberapa tafsir sekaligus.
+ */
+function collectTafsirContext(maxChars = 10000): string {
+  const messages = useChatStore.getState().messages;
+  const parts: string[] = [];
+
+  for (const msg of messages) {
+    if (msg.type !== "tafsir" || !msg.data) continue;
+    const data = msg.data as {
+      surah: number;
+      ayah: number;
+      tafsir_text: string;
+      tafsir_source: string;
+      ayah_translation?: string;
+    };
+    if (!data.tafsir_text) continue;
+    parts.push(
+      `--- Tafsir ${data.tafsir_source} untuk ayat ${data.surah}:${data.ayah} ---\n${data.tafsir_text}`
+    );
+  }
+
+  if (parts.length === 0) return "";
+  return parts.join("\n\n").slice(0, maxChars);
+}
 
 export default function App() {
   const {
@@ -29,6 +56,8 @@ export default function App() {
   const [selectedSurah, setSelectedSurah] = useState<Chapter | null>(null);
   const [ayahInput, setAyahInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [showContext, setShowContext] = useState(false);
+  const [contextText, setContextText] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -50,7 +79,7 @@ export default function App() {
     if (!question) return;
 
     // Deteksi AI chat request
-    const aiKeywords = ["terjemahkan", "translate", "terjemahin", "artinya", "jelaskan", "jelasin", "explain", "ringkas", "rangkum", "summarize", "tolong jelaskan", "bagaimana maksud", "apa maksud", "apa arti"];
+    const aiKeywords = ["terjemahkan", "translate", "terjemahin", "artinya", "jelaskan", "jelasin", "explain", "ringkas", "rangkum", "summarize", "tolong jelaskan", "bagaimana maksud", "apa maksud", "apa arti", "kesimpulan", "kesimpul", "sintesis", "bandingkan", "perbandingan", "dari 2 tafsir", "dari dua tafsir", "2 tafsir", "dua tafsir", "gabungkan", "perbedaan", "persamaan"];
     const isAiChat = aiKeywords.some((k) => question.toLowerCase().includes(k));
 
     setInput("");
@@ -67,7 +96,17 @@ export default function App() {
 
     try {
       if (isAiChat) {
-        const res = await aiChat(question);
+        // Kumpulkan konteks: dari textarea manual + tafsir di pesan sebelumnya
+        const manual = contextText.trim();
+        const auto = collectTafsirContext();
+        const context = manual
+          ? `${manual}\n\n${auto}`.trim()
+          : auto;
+        const res = await aiChat(question, context);
+        if (manual) {
+          setContextText("");
+          setShowContext(false);
+        }
         finalize({
           role: "assistant",
           content: res.answer,
@@ -170,7 +209,46 @@ export default function App() {
             </div>
           </div>
 
+          {showContext && (
+            <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-2.5">
+              <div className="mb-1.5 flex items-center justify-between">
+                <p className="text-xs font-medium text-teal-700">
+                  Konteks tafsir (paste di sini untuk dibandingkan)
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContextText("");
+                    setShowContext(false);
+                  }}
+                  className="text-xs text-neutral-500 hover:text-neutral-700"
+                >
+                  Tutup
+                </button>
+              </div>
+              <textarea
+                value={contextText}
+                onChange={(e) => setContextText(e.target.value)}
+                placeholder="Paste teks tafsir di sini (boleh 2 tafsir atau lebih)...&#10;&#10;Contoh:&#10;--- Tafsir Ibn Kathir untuk ayat 2:255 ---&#10;[teks tafsir Ibn Kathir]&#10;&#10;--- Al-Qurtubi untuk ayat 2:255 ---&#10;[teks tafsir Al-Qurtubi]"
+                rows={4}
+                className="w-full rounded-lg border border-teal-200 bg-white px-3 py-2 text-xs text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:text-sm"
+              />
+            </div>
+          )}
+
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowContext((v) => !v)}
+              title="Tempel konteks tafsir untuk dibandingkan"
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition sm:h-11 sm:w-11 ${
+                showContext
+                  ? "border-teal-600 bg-teal-600 text-white"
+                  : "border-teal-200 bg-white text-teal-700 hover:bg-teal-50"
+              }`}
+            >
+              <ClipboardPaste className="h-4 w-4" />
+            </button>
             <input
               type="text"
               value={input}
@@ -181,7 +259,7 @@ export default function App() {
                   handleSend();
                 }
               }}
-              placeholder="Tanyakan tafsir, kata kunci, atau minta AI menerjemahkan..."
+              placeholder="Tanyakan tafsir, kata kunci, atau minta AI membandingkan 2 tafsir..."
               className="flex-1 rounded-xl border border-teal-200 bg-white px-3.5 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:px-4 sm:py-3 sm:text-base"
             />
             <button
@@ -205,6 +283,7 @@ export default function App() {
           <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 border-t border-dashed border-teal-200 pt-2 text-xs text-black sm:text-sm">
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
               <div className="flex items-center gap-1">
+                <BookOpen className="h-3 w-3 text-teal-600" />
                 <span>Tafsir:</span>
                 <select
                   value={selectedTafsirId}
