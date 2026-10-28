@@ -400,21 +400,11 @@ def _truncate(text: str, max_len: int = 300) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Google Gemini AI Chat
+# Google Gemini AI Chat (REST API - tanpa SDK tambahan, lebih ringan di Vercel)
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-
-_gemini_model = None
-
-
-def _get_gemini_model():
-    global _gemini_model
-    if _gemini_model is None and GEMINI_API_KEY:
-        import google.generativeai as genai
-        genai.configure(api_key=GEMINI_API_KEY)
-        _gemini_model = genai.GenerativeModel(GEMINI_MODEL)
-    return _gemini_model
+GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
 
 def _is_ai_chat_request(question: str) -> bool:
@@ -429,16 +419,44 @@ def _is_ai_chat_request(question: str) -> bool:
 
 
 def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
-    model = _get_gemini_model()
-    if model is None:
+    """Panggil Gemini REST API langsung pakai httpx (tanpa SDK google-generativeai)."""
+    if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY tidak dikonfigurasi")
-    response = model.generate_content(
-        contents=[
-            {"role": "user", "parts": [f"{system_prompt}\n\n{user_prompt}"]},
+
+    url = f"{GEMINI_API_BASE}/{GEMINI_MODEL}:generateContent"
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [{"text": f"{system_prompt}\n\n{user_prompt}"}],
+            }
         ],
-        generation_config={"temperature": 0.2, "max_output_tokens": 2048},
-    )
-    return response.text
+        "generationConfig": {
+            "temperature": 0.2,
+            "maxOutputTokens": 2048,
+        },
+        "systemInstruction": {
+            "parts": [{"text": system_prompt}]
+        },
+    }
+
+    with httpx.Client(timeout=25.0) as client:
+        r = client.post(
+            url,
+            headers={
+                "x-goog-api-key": GEMINI_API_KEY,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        if r.status_code >= 400:
+            raise RuntimeError(f"Gemini API error {r.status_code}: {r.text[:300]}")
+        data = r.json()
+
+    try:
+        return data["candidates"][0]["content"]["parts"][0]["text"]
+    except (KeyError, IndexError) as exc:
+        raise RuntimeError(f"Format respons Gemini tidak dikenali: {str(data)[:200]}") from exc
 
 
 # ---------------------------------------------------------------------------
