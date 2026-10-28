@@ -108,7 +108,12 @@ export async function fetchTafsir(
     const res = await backendClient.get(`${API_PREFIX}/tafsir/${surah}/${ayah}`, {
       params: { tafsir_id: tafsirId, translation_id: defaultTranslationId, summarize: false },
     });
-    return res.data;
+    const data = res.data;
+    // Backend bisa return object dengan field "error" jika gagal
+    if (data && data.error && !data.tafsir_text && !data.ayah_arabic) {
+      throw new Error(data.error);
+    }
+    return data;
   }
 
   const verseKey = `${surah}:${ayah}`;
@@ -172,7 +177,8 @@ export async function searchAyahs(query: string): Promise<{ total: number; resul
 
 export async function translateToIndonesian(text: string): Promise<string> {
   if (USE_BACKEND) {
-    const res = await backendClient.post(`${API_PREFIX}/translate`, { text });
+    const encoded = encodeURIComponent(text);
+    const res = await backendClient.get(`${API_PREFIX}/translate?q=${encoded}`);
     return res.data.translated_text;
   }
   // Direct mode: tidak tersedia tanpa backend
