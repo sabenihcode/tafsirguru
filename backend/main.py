@@ -403,8 +403,78 @@ def _truncate(text: str, max_len: int = 300) -> str:
 # Google Gemini AI Chat (REST API - tanpa SDK tambahan, lebih ringan di Vercel)
 # ---------------------------------------------------------------------------
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "")  # Kosong = auto-detect
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Cache model yang berhasil dipakai
+_gemini_active_model: Optional[str] = None
+
+# Urutan fallback model ( terbaru lebih dulu)
+GEMINI_MODEL_FALLBACKS = [
+    "gemini-2.0-flash",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite",
+    "gemini-flash-latest",
+    "gemini-pro-latest",
+    "gemini-1.5-flash",
+    "gemini-1.5-pro",
+]
+
+
+def _list_gemini_models_sync() -> List[str]:
+    """Ambil daftar model yang tersedia dari Gemini API."""
+    if not GEMINI_API_KEY:
+        return []
+    url = f"{GEMINI_API_BASE}"
+    with httpx.Client(timeout=10.0) as client:
+        r = client.get(
+            url,
+            headers={"x-goog-api-key": GEMINI_API_KEY},
+            params={"pageSize": 100},
+        )
+        r.raise_for_status()
+        data = r.json()
+    models = []
+    for m in data.get("models", []):
+        name = m.get("name", "")
+        methods = m.get("supportedGenerationMethods", [])
+        if "generateContent" in methods and name:
+            models.append(name.replace("models/", ""))
+    return models
+
+
+def _resolve_gemini_model_sync() -> str:
+    """Cari model Gemini yang tersedia dan mendukung generateContent."""
+    global _gemini_active_model
+    if _gemini_active_model:
+        return _gemini_active_model
+
+    # 1. Kalau user set manual, pakai itu
+    if GEMINI_MODEL:
+        _gemini_active_model = GEMINI_MODEL
+        return _gemini_active_model
+
+    # 2. Tanya API daftar model
+    try:
+        available = _list_gemini_models_sync()
+        print(f"[GEMINI] Available models: {available[:10]}")
+        for candidate in GEMINI_MODEL_FALLBACKS:
+            for name in available:
+                if name == candidate or name.startswith(candidate):
+                    _gemini_active_model = name
+                    print(f"[GEMINI] Using model: {name}")
+                    return _gemini_active_model
+        # Pakai model pertama yang tersedia
+        if available:
+            _gemini_active_model = available[0]
+            print(f"[GEMINI] Using first available model: {available[0]}")
+            return _gemini_active_model
+    except Exception as exc:
+        print(f"[GEMINI] Failed to list models: {exc}")
+
+    # 3. Fallback ke nama umum
+    _gemini_active_model = "gemini-2.0-flash"
+    return _gemini_active_model
 
 
 def _is_ai_chat_request(question: str) -> bool:
@@ -423,7 +493,6 @@ def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
     if not GEMINI_API_KEY:
         raise RuntimeError("GEMINI_API_KEY tidak dikonfigurasi")
 
-    url = f"{GEMINI_API_BASE}/{GEMINI_MODEL}:generateContent"
     payload = {
         "contents": [
             {
@@ -440,23 +509,49 @@ def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
         },
     }
 
-    with httpx.Client(timeout=25.0) as client:
-        r = client.post(
-            url,
-            headers={
-                "x-goog-api-key": GEMINI_API_KEY,
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-        if r.status_code >= 400:
-            raise RuntimeError(f"Gemini API error {r.status_code}: {r.text[:300]}")
-        data = r.json()
+    # Susunan model yang akan dicoba
+    models_to_try: List[str] = []
+    resolved = _resolve_gemini_model_sync()
+    if resolved:
+        models_to_try.append(resolved)
+    for m in GEMINI_MODEL_FALLBACKS:
+        if m not in models_to_try:
+            models_to_try.append(m)
 
-    try:
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except (KeyError, IndexError) as exc:
-        raise RuntimeError(f"Format respons Gemini tidak dikenali: {str(data)[:200]}") from exc
+    last_error = None
+    with httpx.Client(timeout=25.0) as client:
+        for model in models_to_try:
+            url = f"{GEMINI_API_BASE}/{model}:generateContent"
+            try:
+                r = client.post(
+                    url,
+                    headers={
+                        "x-goog-api-key": GEMINI_API_KEY,
+                        "Content-Type": "application/json",
+                    },
+                    json=payload,
+                )
+                if r.status_code == 404:
+                    print(f"[GEMINI] Model '{model}' not found, trying next...")
+                    last_error = f"Model {model} not found"
+                    continue
+                if r.status_code >= 400:
+                    last_error = f"Gemini API error {r.status_code}: {r.text[:300]}"
+                    print(f"[GEMINI] {last_error}")
+                    continue
+                data = r.json()
+                global _gemini_active_model
+                _gemini_active_model = model
+                print(f"[GEMINI] Success with model: {model}")
+                return data["candidates"][0]["content"]["parts"][0]["text"]
+            except (KeyError, IndexError):
+                last_error = f"Format respons tidak dikenali: {str(data)[:200]}"
+                continue
+            except Exception as exc:
+                last_error = str(exc)
+                continue
+
+    raise RuntimeError(f"Gagal memanggil Gemini: {last_error}")
 
 
 # ---------------------------------------------------------------------------
