@@ -481,9 +481,25 @@ def _translate_mymemory_sync(text: str) -> str:
 
 def _translate_google_deep_translator(text: str) -> str:
     """deep-translator Google Translate - sering kena rate limit di server cloud."""
-    from deep_translator import GoogleTranslator
+    try:
+        from deep_translator import GoogleTranslator
+    except ImportError:
+        raise RuntimeError("deep_translator tidak terinstall")
     translator = GoogleTranslator(source="auto", target="id")
     return translator.translate(text)
+
+
+def _translate_gemini_sync(text: str) -> str:
+    """Terjemahkan via Gemini REST API (fallback terbaik, kualitas tinggi)."""
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY tidak dikonfigurasi")
+    system_prompt = (
+        "Kamu adalah penerjemah profesional. Terjemahkan teks yang diberikan ke dalam "
+        "Bahasa Indonesia dengan tepat, sopan, dan mudah dipahami. "
+        "JANGAN menambahkan komentar atau penjelasan tambahan. "
+        "Hanya keluarkan hasil terjemahan."
+    )
+    return _call_gemini_sync(system_prompt, text)
 
 
 def translate_to_indonesian_sync(text: str) -> str:
@@ -493,7 +509,7 @@ def translate_to_indonesian_sync(text: str) -> str:
 
     stripped = _strip_tags(text)
     # MyMemory punya batas panjang URL, split jika terlalu panjang
-    max_chunk = 1500
+    max_chunk = 1200
     if len(stripped) <= max_chunk:
         chunks = [stripped]
     else:
@@ -512,7 +528,7 @@ def translate_to_indonesian_sync(text: str) -> str:
     translated_parts: List[str] = []
     for chunk in chunks:
         last_error = None
-        # Provider 1: MyMemory
+        # Provider 1: MyMemory (gratis, cepat untuk teks pendek)
         try:
             translated_parts.append(_translate_mymemory_sync(chunk))
             continue
@@ -520,12 +536,21 @@ def translate_to_indonesian_sync(text: str) -> str:
             print(f"[TRANSLATE] MyMemory failed: {exc}")
             last_error = exc
 
-        # Provider 2: deep-translator Google (fallback)
+        # Provider 2: Gemini (butuh API key, kualitas terbaik)
+        if GEMINI_API_KEY:
+            try:
+                translated_parts.append(_translate_gemini_sync(chunk))
+                continue
+            except Exception as exc:
+                print(f"[TRANSLATE] Gemini failed: {exc}")
+                last_error = exc
+
+        # Provider 3: deep-translator Google
         try:
             translated_parts.append(_translate_google_deep_translator(chunk))
             continue
         except Exception as exc:
-            print(f"[TRANSLATE] Google fallback failed: {exc}")
+            print(f"[TRANSLATE] deep-translator failed: {exc}")
             last_error = exc
 
         # Semua provider gagal untuk chunk ini
