@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, RotateCcw, BookOpen } from "lucide-react";
 import { useChatStore } from "@/store/useChatStore";
-import { fetchChapters, fetchTafsirs, fetchTranslations, chatWithBot, initDefaults, setApiLanguage } from "@/services/api";
+import { fetchChapters, fetchTafsirs, fetchTranslations, chatWithBot, aiChat, initDefaults, setApiLanguage } from "@/services/api";
 import Header from "@/components/Header";
 import ChatMessage from "@/components/ChatMessage";
 import SurahAutocomplete from "@/components/SurahAutocomplete";
@@ -49,6 +49,10 @@ export default function App() {
     const question = (text ?? input).trim();
     if (!question) return;
 
+    // Deteksi AI chat request
+    const aiKeywords = ["terjemahkan", "translate", "terjemahin", "artinya", "jelaskan", "jelasin", "explain", "ringkas", "rangkum", "summarize", "tolong jelaskan", "bagaimana maksud", "apa maksud", "apa arti"];
+    const isAiChat = aiKeywords.some((k) => question.toLowerCase().includes(k));
+
     setInput("");
     setError(null);
     addMessage({ id: crypto.randomUUID(), role: "user", content: question, type: "text" });
@@ -62,13 +66,22 @@ export default function App() {
     };
 
     try {
-      const res = await chatWithBot(question, selectedTafsirId, language);
-      finalize({
-        role: "assistant",
-        content: res.answer,
-        type: res.type === "search" ? "search" : res.type === "not_found" ? "not_found" : res.type === "error" ? "error" : "tafsir",
-        data: res.source_data,
-      });
+      if (isAiChat) {
+        const res = await aiChat(question);
+        finalize({
+          role: "assistant",
+          content: res.answer,
+          type: "text",
+        });
+      } else {
+        const res = await chatWithBot(question, selectedTafsirId, language);
+        finalize({
+          role: "assistant",
+          content: res.answer,
+          type: res.type === "search" ? "search" : res.type === "not_found" ? "not_found" : res.type === "error" ? "error" : "tafsir",
+          data: res.source_data,
+        });
+      }
     } catch (err: any) {
       finalize({
         role: "assistant",
@@ -162,7 +175,7 @@ export default function App() {
                   handleSend();
                 }
               }}
-              placeholder="Tanyakan tafsir atau kata kunci…"
+              placeholder="Tanyakan tafsir, kata kunci, atau minta AI menerjemahkan..."
               className="flex-1 rounded-xl border border-teal-200 bg-white px-3.5 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:px-4 sm:py-3 sm:text-base"
             />
             <button
