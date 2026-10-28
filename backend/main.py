@@ -400,6 +400,48 @@ def _truncate(text: str, max_len: int = 300) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Google Gemini AI Chat
+# ---------------------------------------------------------------------------
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+
+_gemini_model = None
+
+
+def _get_gemini_model():
+    global _gemini_model
+    if _gemini_model is None and GEMINI_API_KEY:
+        import google.generativeai as genai
+        genai.configure(api_key=GEMINI_API_KEY)
+        _gemini_model = genai.GenerativeModel(GEMINI_MODEL)
+    return _gemini_model
+
+
+def _is_ai_chat_request(question: str) -> bool:
+    """Deteksi apakah user meminta AI menerjemahkan/menjelaskan/meringkas."""
+    q = question.lower()
+    keywords = [
+        "terjemahkan", "translate", "terjemahin", "artinya",
+        "jelaskan", "jelasin", "explain", "ringkas", "rangkum", "summarize",
+        "tolong jelaskan", "bagaimana maksud", "apa maksud", "apa arti",
+    ]
+    return any(k in q for k in keywords)
+
+
+def _call_gemini_sync(system_prompt: str, user_prompt: str) -> str:
+    model = _get_gemini_model()
+    if model is None:
+        raise RuntimeError("GEMINI_API_KEY tidak dikonfigurasi")
+    response = model.generate_content(
+        contents=[
+            {"role": "user", "parts": [f"{system_prompt}\n\n{user_prompt}"]},
+        ],
+        generation_config={"temperature": 0.2, "max_output_tokens": 2048},
+    )
+    return response.text
+
+
+# ---------------------------------------------------------------------------
 # Translation providers (multi-provider dengan fallback)
 # ---------------------------------------------------------------------------
 def _translate_mymemory_sync(text: str) -> str:
@@ -724,6 +766,50 @@ async def translate_test(q: str = Query(..., min_length=1)):
             "error": str(exc),
             "traceback": traceback.format_exc(),
         }
+
+
+class AIChatRequest(BaseModel):
+    question: str = Field(..., min_length=1, description="Pertanyaan untuk AI assistant")
+
+
+class AIChatResponse(BaseModel):
+    answer: str
+    from_api: bool = True
+
+
+@app.post("/api/ai-chat", response_model=AIChatResponse)
+async def ai_chat(req: AIChatRequest):
+    question = req.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Pertanyaan tidak boleh kosong.")
+
+    if not GEMINI_API_KEY:
+        return AIChatResponse(
+            answer="Fitur AI belum aktif. Tambahkan GEMINI_API_KEY di environment variables.",
+            from_api=True,
+        )
+
+    system_prompt = (
+        "Anda adalah asisten tafsir Al-Qur'an yang membantu user memahami, "
+        "menerjemahkan, atau meringkas teks tafsir. "
+        "Jawaban HARUS dalam Bahasa Indonesia. "
+        "JANGAN menambahkan informasi baru di luar teks yang diberikan user. "
+        "Jika user meminta terjemahan, terjemahkan dengan bahasa yang sopan dan mudah dipahami. "
+        "Jika user meminta penjelasan/ringkasan, jelaskan berdasarkan teks yang diberikan saja."
+    )
+
+    try:
+        answer = await asyncio.wait_for(
+            asyncio.to_thread(_call_gemini_sync, system_prompt, question),
+            timeout=20.0,
+        )
+        return AIChatResponse(answer=answer)
+    except asyncio.TimeoutError:
+        return AIChatResponse(answer="AI timeout, coba lagi dengan teks yang lebih pendah.")
+    except Exception as exc:
+        import traceback
+        print(f"[AI CHAT ERROR] {exc}\n{traceback.format_exc()}")
+        return AIChatResponse(answer=f"AI gagal merespons: {exc}")
 
 
 @app.post("/api/chat", response_model=ChatResponse)
