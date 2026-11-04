@@ -8,6 +8,7 @@ import {
   chatWithBot,
   aiChat,
   kitabSearch,
+  kitabList,
   initDefaults,
   setApiLanguage,
 } from "@/services/api";
@@ -91,6 +92,8 @@ export default function App() {
   const [ayahInput, setAyahInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [kitabMode, setKitabMode] = useState(false);
+  const [kitabNames, setKitabNames] = useState<string[]>([]);
+  const [selectedKitab, setSelectedKitab] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -106,6 +109,13 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Muat daftar kitab saat Mode Kitab dinyalakan
+  useEffect(() => {
+    if (kitabMode && kitabNames.length === 0) {
+      kitabList().then(setKitabNames).catch(() => {});
+    }
+  }, [kitabMode, kitabNames.length]);
 
   const handleSend = async (text?: string, opts?: { skipKitab?: boolean }) => {
     const question = (text ?? input).trim();
@@ -133,7 +143,11 @@ export default function App() {
         // Cari di database kitab (HF Space), gagal = lanjut tanpa sumber
         let sources: KitabSource[] = [];
         try {
-          sources = await kitabSearch(question, { k: 5, translate: true });
+          sources = await kitabSearch(question, {
+            k: 6,
+            translate: true,
+            kitab: selectedKitab || undefined,
+          });
         } catch (e) {
           console.warn("[KITAB]", e);
         }
@@ -147,7 +161,7 @@ export default function App() {
             )
             .join("\n\n");
           const res = await aiChat(
-            `${question}\n\nJawab langsung, maksimal 4 kalimat, tanpa kalimat pembuka seperti "berdasarkan teks". Pakai hanya sumber yang langsung menjawab pertanyaan; abaikan sumber yang membahas topik lain meski memuat kata yang sama. Tulis nomor sumber [n] di akhir setiap kalimat yang berasal dari teks, contoh: ... [6]. Kutip Arab seperlunya. Sumber berlabel "paragraf lanjutan" adalah lanjutan dari sumber sebelumnya. Format: paragraf pendek atau daftar dengan tanda "-". Jangan pakai tanda * kecuali **tebal**.`,
+            `${question}\n\nJawab langsung, maksimal 4 kalimat, tanpa kalimat pembuka seperti "berdasarkan teks". Pakai hanya sumber yang langsung menjawab pertanyaan; abaikan sumber yang hanya menyebut kata kunci sambil lalu atau membahas topik lain. Jangan menyimpulkan hubungan yang tidak tertulis eksplisit di sumber. Jika tidak ada sumber yang membahas langsung, jawab persis: "Sumber yang ditemukan tidak membahas hal ini secara langsung." lalu sebut singkat apa yang dibahas sumber tersebut, tanpa menjadikannya jawaban. Tulis nomor sumber [n] di akhir setiap kalimat yang berasal dari teks, contoh: ... [6]. Kutip Arab seperlunya. Sumber berlabel "paragraf lanjutan" adalah lanjutan dari sumber sebelumnya. Format: paragraf pendek atau daftar dengan tanda "-". Jangan pakai tanda * kecuali **tebal**.`,
             context
           );
           answer = res.answer;
@@ -284,7 +298,7 @@ export default function App() {
               }}
               placeholder={
                 kitabMode
-                  ? "Tanya isi kitab (Ṭabarī, dll), boleh bahasa Indonesia…"
+                  ? "Tanya isi kitab, boleh bahasa Indonesia…"
                   : "Tanyakan tafsir, tempel teks tafsir + perintah, atau kata kunci..."
               }
               className="flex-1 rounded-xl border border-teal-200 bg-white px-3.5 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:px-4 sm:py-3 sm:text-base"
@@ -353,6 +367,23 @@ export default function App() {
                 />
                 Mode Kitab
               </label>
+              {kitabMode && (
+                <div className="flex items-center gap-1">
+                  <span>Kitab:</span>
+                  <select
+                    value={selectedKitab}
+                    onChange={(e) => setSelectedKitab(e.target.value)}
+                    className="max-w-[11rem] truncate rounded border border-teal-200 bg-white px-1 py-0.5 text-black focus:outline-none"
+                  >
+                    <option value="">Semua kitab</option>
+                    {kitabNames.map((n) => (
+                      <option key={n} value={n}>
+                        {n}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           </div>
         </div>
