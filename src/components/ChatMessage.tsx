@@ -9,9 +9,22 @@ interface Props {
   onSelectResult?: (surah: number, ayah: number) => void;
 }
 
+type SourceItem = { s: KitabSource; n: number };
+
 export default function ChatMessage({ message, onSelectResult }: Props) {
   const isUser = message.role === "user";
-  const sources = ((message.data as any)?.sources ?? []) as KitabSource[];
+  const allSources = ((message.data as any)?.sources ?? []) as KitabSource[];
+
+  // Hanya tampilkan sumber yang dikutip [n] di jawaban (nomor asli dipertahankan)
+  const citedNums = new Set<number>();
+  if (!isUser && allSources.length > 0) {
+    for (const m of (message.content || "").matchAll(/\[(\d+(?:\s*,\s*\d+)*)\]/g)) {
+      for (const x of m[1].split(",")) citedNums.add(parseInt(x.trim(), 10));
+    }
+  }
+  const sources: SourceItem[] = allSources
+    .map((s, i) => ({ s, n: i + 1 }))
+    .filter(({ n }) => citedNums.size === 0 || citedNums.has(n));
 
   return (
     <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
@@ -58,7 +71,7 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
           )}
 
           {message.role === "assistant" && message.type === "text" && sources.length > 0 && (
-            <KitabSources sources={sources} />
+            <KitabSources items={sources} />
           )}
 
           {message.type === "loading" && (
@@ -328,7 +341,7 @@ function SearchResultsView({
   );
 }
 
-function KitabSources({ sources }: { sources: KitabSource[] }) {
+function KitabSources({ items }: { items: SourceItem[] }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-xl border border-teal-100 bg-teal-50/50">
@@ -339,14 +352,14 @@ function KitabSources({ sources }: { sources: KitabSource[] }) {
       >
         <span className="flex items-center gap-1.5">
           <Library className="h-4 w-4" />
-          {sources.length} sumber kitab
+          {items.length} sumber dikutip
         </span>
         {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
       {open && (
         <div className="space-y-2 px-3 pb-3">
-          {sources.map((s, i) => (
-            <SourceCard key={i} index={i + 1} source={s} />
+          {items.map(({ s, n }) => (
+            <SourceCard key={n} index={n} source={s} />
           ))}
         </div>
       )}
@@ -356,17 +369,19 @@ function KitabSources({ sources }: { sources: KitabSource[] }) {
 
 function SourceCard({ index, source }: { index: number; source: KitabSource }) {
   const [expanded, setExpanded] = useState(false);
+  const [translated, setTranslated] = useState<string | null>(null);
   const text = source.teks_asli || "";
   const long = text.length > 300;
   const shown = expanded || !long ? text : text.slice(0, 300) + "…";
 
   return (
     <div className="rounded-lg border border-teal-100 bg-white p-2.5 sm:p-3">
-      <div className="mb-1.5 flex items-start justify-between gap-2">
-        <p className="text-[11px] font-semibold text-teal-700 sm:text-xs">
-          [{index}] {source.kitab}
-          {source.bab ? ` — ${source.bab}` : ""}
-        </p>
+      <p className="mb-1.5 text-[11px] font-semibold text-teal-700 sm:text-xs">
+        [{index}] {source.kitab}
+        {source.bab ? ` — ${source.bab}` : ""}
+      </p>
+      <div className="mb-2 flex flex-wrap items-start justify-end gap-2">
+        <TranslateButton text={text} onTranslated={setTranslated} />
         <CopyButton text={`${source.kitab}${source.bab ? " — " + source.bab : ""}\n\n${text}`} />
       </div>
       <p dir="rtl" className="font-arabic text-lg leading-loose text-black sm:text-xl">
@@ -380,6 +395,12 @@ function SourceCard({ index, source }: { index: number; source: KitabSource }) {
         >
           {expanded ? "Ringkas" : "Selengkapnya"}
         </button>
+      )}
+      {translated && (
+        <div className="mt-2 rounded-lg border-l-4 border-teal-500 bg-teal-50 p-3">
+          <p className="mb-1 text-xs font-semibold text-teal-700">Terjemahan Indonesia:</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-black sm:text-base">{translated}</p>
+        </div>
       )}
     </div>
   );
