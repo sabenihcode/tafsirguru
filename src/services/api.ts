@@ -242,6 +242,12 @@ export async function chatWithBot(
     return res.data;
   }
 
+export async function kitabList(): Promise<string[]> {
+  if (!USE_BACKEND) return [];
+  const res = await backendClient.get(`${API_PREFIX}/kitab/list`, { timeout: 12000 });
+  return res.data?.kitab ?? [];
+}
+
   // Direct mode: replicate backend logic in browser
   const ref = extractSurahAyah(question);
   if (ref) {
