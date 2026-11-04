@@ -147,7 +147,7 @@ export default function App() {
             )
             .join("\n\n");
           const res = await aiChat(
-            `${question}\n\nWajib tulis nomor sumber [n] di akhir setiap kalimat yang berasal dari teks, contoh: ... [6]. Kutip Arab seperlunya. Abaikan sumber yang tidak relevan. Sumber berlabel "paragraf lanjutan" adalah lanjutan dari sumber sebelumnya. Format: paragraf pendek atau daftar dengan tanda "-". Jangan pakai tanda * kecuali **tebal**.`,
+            `${question}\n\nJawab langsung, maksimal 4 kalimat, tanpa kalimat pembuka seperti "berdasarkan teks". Pakai hanya sumber yang langsung menjawab pertanyaan; abaikan sumber yang membahas topik lain meski memuat kata yang sama. Tulis nomor sumber [n] di akhir setiap kalimat yang berasal dari teks, contoh: ... [6]. Kutip Arab seperlunya. Sumber berlabel "paragraf lanjutan" adalah lanjutan dari sumber sebelumnya. Format: paragraf pendek atau daftar dengan tanda "-". Jangan pakai tanda * kecuali **tebal**.`,
             context
           );
           answer = res.answer;
