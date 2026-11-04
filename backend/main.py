@@ -1370,6 +1370,81 @@ async def chat(req: ChatRequest):
     )
 
 
+# ===================== KITAB (Maktabah AI via HF Space) =====================
+KITAB_API_BASE = os.getenv("KITAB_API_BASE", "").rstrip("/")
+KITAB_API_KEY = os.getenv("KITAB_API_KEY", "")
+
+
+async def fetch_kitab(
+    q: str, kitab: str = "", k: int = 5, translate: bool = True
+) -> Dict[str, Any]:
+    if not KITAB_API_BASE or not KITAB_API_KEY:
+        return {"data": [], "error": "KITAB_API_BASE / KITAB_API_KEY belum diset"}
+
+    cache_key = f"kitab:{q}:{kitab}:{k}:{translate}"
+    cached = ttl_cache.get(cache_key)
+    if cached:
+        return cached
+
+    try:
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            r = await client.get(
+                f"{KITAB_API_BASE}/api/kitab/search",
+                params={
+                    "q": q,
+                    "kitab": kitab,
+                    "k": k,
+                    "translate": "true" if translate else "false",
+                },
+                headers={"x-api-key": KITAB_API_KEY},
+            )
+        if r.status_code != 200:
+            return {"data": [], "error": f"upstream {r.status_code}"}
+        out = r.json()
+    except Exception as exc:
+        return {"data": [], "error": f"{type(exc).__name__}: {exc}"}
+
+    if out.get("data"):
+        ttl_cache.set(cache_key, out)
+    return out
+
+
+@app.get("/api/kitab")
+async def kitab_search(
+    q: str = Query(..., min_length=2, max_length=500),
+    kitab: str = Query(""),
+    k: int = Query(5, ge=1, le=15),
+    translate: bool = Query(True),
+):
+    return await fetch_kitab(q, kitab, k, translate)
+
+
+@app.get("/api/kitab/ayah/{surah}/{ayah}")
+async def kitab_ayah(surah: int, ayah: int, k: int = Query(5, ge=1, le=15)):
+    validate_ref(surah, ayah)
+    text = ""
+    try:
+        async with httpx.AsyncClient(timeout=4.0) as client:
+            r = await client.get(
+                f"{QURAN_API_BASE}/quran/verses/imlaei",
+                params={"verse_key": f"{surah}:{ayah}"},
+            )
+        if r.status_code == 200:
+            verses = r.json().get("verses") or []
+            if verses:
+                text = verses[0].get("text_imlaei", "")
+    except Exception:
+        pass
+
+    if not text:
+        return {"data": [], "error": "teks ayat tidak ditemukan", "ayah_text": ""}
+
+    query = " ".join(text.split()[:25])
+    result = await fetch_kitab(query, "الطبري", k, False)
+    return {**result, "ayah_text": text}
+# ===================== END KITAB =====================
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
