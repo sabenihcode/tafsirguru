@@ -86,6 +86,7 @@ function stripTags(html: string): string {
 function cleanAiMarkdown(text: string): string {
   if (!text) return "";
   let out = text;
+  out = out.replace(/^\s*\*\s+/gm, "- ");
 
   // Heading: ### Teks -> <h3>Teks</h3>
   out = out.replace(/^#{1,6}\s*(.+)$/gm, "<h3>$1</h3>");
