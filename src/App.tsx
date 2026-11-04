@@ -133,7 +133,7 @@ export default function App() {
         // Cari di database kitab (HF Space), gagal = lanjut tanpa sumber
         let sources: KitabSource[] = [];
         try {
-          sources = await kitabSearch(question, { k: 8, translate: true });
+          sources = await kitabSearch(question, { k: 6, translate: true });
         } catch (e) {
           console.warn("[KITAB]", e);
         }
@@ -143,11 +143,11 @@ export default function App() {
           const context = sources
             .map(
               (s, i) =>
-                `[${i + 1}] ${s.kitab}${s.bab ? " — " + s.bab : ""}\n${(s.teks_asli || "").slice(0, 600)}`
+                `[${i + 1}] ${s.kitab}${s.bab ? " — " + s.bab : ""}\n${(s.teks_asli || "").slice(0, 1000)}`
             )
             .join("\n\n");
           const res = await aiChat(
-            `${question}\n\nJawab singkat dan langsung berdasarkan teks kitab di atas. Rujuk dengan [1], [2]. Kutip Arab seperlunya. Abaikan sumber yang tidak relevan.`,
+            `${question}\n\nJawab singkat dan langsung berdasarkan teks kitab di atas. Rujuk dengan [1], [2]. Kutip Arab seperlunya. Abaikan sumber yang tidak relevan. Sumber berlabel "paragraf lanjutan" adalah lanjutan dari sumber sebelumnya. Format: paragraf pendek atau daftar dengan tanda "-". Jangan pakai tanda * kecuali **tebal**.`,
             context
           );
           answer = res.answer;
