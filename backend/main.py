@@ -1439,23 +1439,6 @@ async def kitab_ayah(surah: int, ayah: int, k: int = Query(5, ge=1, le=15)):
 
 _KITAB_LIST_CACHE: Dict[str, Any] = {"t": 0.0, "v": []}
 
-
-@app.get("/api/kitab/list")
-async def kitab_list():
-    import time
-    if not KITAB_API_BASE:
-        return {"kitab": []}
-    if _KITAB_LIST_CACHE["v"] and time.time() - _KITAB_LIST_CACHE["t"] < 3600:
-        return {"kitab": _KITAB_LIST_CACHE["v"]}
-    try:
-        async with httpx.AsyncClient(timeout=8.0) as c:
-            r = await c.get(f"{KITAB_API_BASE}/api/kitab/health")
-        names = r.json().get("kitab", []) if r.status_code == 200 else []
-    except Exception:
-        names = []
-    if names:
-        _KITAB_LIST_CACHE.update(t=time.time(), v=names)
-    return {"kitab": names}
 # ===================== END KITAB =====================
 
 
