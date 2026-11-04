@@ -1,7 +1,17 @@
 import { useEffect, useRef, useState } from "react";
-import { Send, RotateCcw, BookOpen } from "lucide-react";
+import { Send, RotateCcw } from "lucide-react";
 import { useChatStore } from "@/store/useChatStore";
-import { fetchChapters, fetchTafsirs, fetchTranslations, chatWithBot, aiChat, initDefaults, setApiLanguage } from "@/services/api";
+import {
+  fetchChapters,
+  fetchTafsirs,
+  fetchTranslations,
+  chatWithBot,
+  aiChat,
+  kitabSearch,
+  initDefaults,
+  setApiLanguage,
+} from "@/services/api";
+import type { KitabSource } from "@/services/api";
 import Header from "@/components/Header";
 import ChatMessage from "@/components/ChatMessage";
 import SurahAutocomplete from "@/components/SurahAutocomplete";
@@ -40,11 +50,9 @@ function collectTafsirContext(maxChars = 10000): string {
  */
 function extractPastedContext(message: string, threshold = 400): string {
   if (message.length <= threshold) return "";
-  // Ambil bagian terpanjang yang berulang (paragraf panjang)
   const paragraphs = message.split(/\n{2,}/);
   const longParagraphs = paragraphs.filter((p) => p.trim().length > threshold);
   if (longParagraphs.length === 0) {
-    // Bisa juga satu blok besar tanpa baris kosong
     return message.trim();
   }
   return longParagraphs.join("\n\n").trim();
@@ -82,6 +90,7 @@ export default function App() {
   const [selectedSurah, setSelectedSurah] = useState<Chapter | null>(null);
   const [ayahInput, setAyahInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [kitabMode, setKitabMode] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -98,13 +107,14 @@ export default function App() {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  const handleSend = async (text?: string) => {
+  const handleSend = async (text?: string, opts?: { skipKitab?: boolean }) => {
     const question = (text ?? input).trim();
     if (!question) return;
 
     // Deteksi AI chat request
     const aiKeywords = ["terjemahkan", "translate", "terjemahin", "artinya", "jelaskan", "jelasin", "explain", "ringkas", "rangkum", "summarize", "tolong jelaskan", "bagaimana maksud", "apa maksud", "apa arti", "kesimpulan", "kesimpul", "sintesis", "bandingkan", "perbandingan", "dari 2 tafsir", "dari dua tafsir", "2 tafsir", "dua tafsir", "gabungkan", "perbedaan", "persamaan"];
     const isAiChat = aiKeywords.some((k) => question.toLowerCase().includes(k));
+    const useKitab = kitabMode && !opts?.skipKitab;
 
     setInput("");
     setError(null);
@@ -119,7 +129,40 @@ export default function App() {
     };
 
     try {
-      if (isAiChat) {
+      if (useKitab) {
+        // Cari di database kitab (HF Space), gagal = lanjut tanpa sumber
+        let sources: KitabSource[] = [];
+        try {
+          sources = await kitabSearch(question, { k: 8, translate: true });
+        } catch (e) {
+          console.warn("[KITAB]", e);
+        }
+
+        let answer: string;
+        if (sources.length > 0) {
+          const context = sources
+            .map(
+              (s, i) =>
+                `[${i + 1}] ${s.kitab}${s.bab ? " — " + s.bab : ""}\n${(s.teks_asli || "").slice(0, 600)}`
+            )
+            .join("\n\n");
+          const res = await aiChat(
+            `${question}\n\nJawab singkat dan langsung berdasarkan teks kitab di atas. Rujuk dengan [1], [2]. Kutip Arab seperlunya. Abaikan sumber yang tidak relevan.`,
+            context
+          );
+          answer = res.answer;
+        } else {
+          const res = await aiChat(question);
+          answer = `${res.answer}\n\n_(Sumber kitab tidak ditemukan atau server kitab sedang tidak aktif.)_`;
+        }
+
+        finalize({
+          role: "assistant",
+          content: answer,
+          type: "text",
+          data: { sources },
+        });
+      } else if (isAiChat) {
         // Konteks: tafsir yang otomatis terkumpul dari chat + teks panjang yang dipaste user
         const auto = collectTafsirContext();
         const pasted = extractPastedContext(question);
@@ -168,7 +211,7 @@ export default function App() {
       return;
     }
     const question = `Surah ${selectedSurah.name_simple} ayat ${ayah}`;
-    await handleSend(question);
+    await handleSend(question, { skipKitab: true });
     setAyahInput("");
   };
 
@@ -176,7 +219,7 @@ export default function App() {
     const name = chapters.find((c) => c.id === surah)?.name_simple || String(surah);
     const question = `Surah ${name} ayat ${ayah}`;
     setInput(question);
-    await handleSend(question);
+    await handleSend(question, { skipKitab: true });
   };
 
   return (
@@ -239,7 +282,11 @@ export default function App() {
                   handleSend();
                 }
               }}
-              placeholder="Tanyakan tafsir, tempel teks tafsir + perintah, atau kata kunci..."
+              placeholder={
+                kitabMode
+                  ? "Tanya isi kitab (Ṭabarī, dll), boleh bahasa Indonesia…"
+                  : "Tanyakan tafsir, tempel teks tafsir + perintah, atau kata kunci..."
+              }
               className="flex-1 rounded-xl border border-teal-200 bg-white px-3.5 py-2.5 text-sm text-black placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-teal-500 sm:px-4 sm:py-3 sm:text-base"
             />
             <button
@@ -297,6 +344,15 @@ export default function App() {
                   <option value="en">English</option>
                 </select>
               </div>
+              <label className="flex cursor-pointer items-center gap-1 font-medium text-teal-700">
+                <input
+                  type="checkbox"
+                  checked={kitabMode}
+                  onChange={(e) => setKitabMode(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-teal-600"
+                />
+                Mode Kitab
+              </label>
             </div>
           </div>
         </div>
