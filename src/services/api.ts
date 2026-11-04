@@ -217,6 +217,13 @@ export async function kitabSearch(
   return (res.data?.data ?? []) as KitabSource[];
 }
 
+/** Daftar nama kitab untuk dropdown Mode Kitab. */
+export async function kitabList(): Promise<string[]> {
+  if (!USE_BACKEND) return [];
+  const res = await backendClient.get(`${API_PREFIX}/kitab/list`, { timeout: 12000 });
+  return res.data?.kitab ?? [];
+}
+
 export async function aiChat(question: string, context?: string): Promise<{ answer: string }> {
   if (USE_BACKEND) {
     const res = await backendClient.post(`${API_PREFIX}/ai-chat`, {
@@ -241,12 +248,6 @@ export async function chatWithBot(
     const res = await backendClient.post(`${API_PREFIX}/chat`, { question, tafsir_id: tafsirId, language });
     return res.data;
   }
-
-export async function kitabList(): Promise<string[]> {
-  if (!USE_BACKEND) return [];
-  const res = await backendClient.get(`${API_PREFIX}/kitab/list`, { timeout: 12000 });
-  return res.data?.kitab ?? [];
-}
 
   // Direct mode: replicate backend logic in browser
   const ref = extractSurahAyah(question);
