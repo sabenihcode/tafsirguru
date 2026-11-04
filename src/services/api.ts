@@ -28,6 +28,17 @@ let defaultTranslationId = 33; // fallback bahasa Indonesia
 
 const ALLOWED_TAFSIR_IDS = [14, 90]; // Ibn Kathir (Arabic), Al-Qurtubi (Arabic)
 
+// ---------------------------------------------------------------------------
+// Tipe sumber kitab (Maktabah AI)
+// ---------------------------------------------------------------------------
+export interface KitabSource {
+  kitab: string;
+  penulis?: string;
+  bab?: string;
+  teks_asli: string;
+  score?: number;
+}
+
 export function getDefaultTranslationId(language: "id" | "en"): number {
   const lang = language === "id" ? "indonesian" : "english";
   const found = translationMap.find((t) => (t.language_name || "").toLowerCase() === lang);
@@ -155,22 +166,22 @@ export async function searchAyahs(query: string): Promise<{ total: number; resul
     translations?: Array<{ text: string }>;
   }> = res.data.search?.results || [];
 
-    const results: SearchResult[] = raw.map((item) => {
-      const [s, a] = item.verse_key.split(":");
-      const surah = parseInt(s, 10);
-      const ayah = parseInt(a, 10);
-      const snippet = item.translations?.length
-        ? stripTags(item.translations[0].text)
-        : (item.text || "").slice(0, 200);
-      return {
-        surah,
-        ayah,
-        verse_key: item.verse_key,
-        surah_name: getSurahById(surah)?.english || `Surah ${surah}`,
-        text_snippet: snippet,
-        arabic: item.text || "",
-      };
-    });
+  const results: SearchResult[] = raw.map((item) => {
+    const [s, a] = item.verse_key.split(":");
+    const surah = parseInt(s, 10);
+    const ayah = parseInt(a, 10);
+    const snippet = item.translations?.length
+      ? stripTags(item.translations[0].text)
+      : (item.text || "").slice(0, 200);
+    return {
+      surah,
+      ayah,
+      verse_key: item.verse_key,
+      surah_name: getSurahById(surah)?.english || `Surah ${surah}`,
+      text_snippet: snippet,
+      arabic: item.text || "",
+    };
+  });
 
   return { total: res.data.search?.total_results || 0, results };
 }
@@ -185,9 +196,33 @@ export async function translateToIndonesian(text: string): Promise<string> {
   throw new Error("Fitur translate memerlukan backend");
 }
 
-export async function aiChat(question: string): Promise<{ answer: string }> {
+/**
+ * Cari di database kitab (HF Space) lewat backend Vercel.
+ * Mengembalikan daftar sumber; array kosong jika tidak ada hasil.
+ */
+export async function kitabSearch(
+  q: string,
+  opts: { kitab?: string; k?: number; translate?: boolean } = {}
+): Promise<KitabSource[]> {
+  if (!USE_BACKEND) throw new Error("Fitur kitab memerlukan backend");
+  const res = await backendClient.get(`${API_PREFIX}/kitab`, {
+    params: {
+      q,
+      kitab: opts.kitab ?? "",
+      k: opts.k ?? 5,
+      translate: opts.translate ?? true,
+    },
+    timeout: 12000,
+  });
+  return (res.data?.data ?? []) as KitabSource[];
+}
+
+export async function aiChat(question: string, context?: string): Promise<{ answer: string }> {
   if (USE_BACKEND) {
-    const res = await backendClient.post(`${API_PREFIX}/ai-chat`, { question });
+    const res = await backendClient.post(`${API_PREFIX}/ai-chat`, {
+      question,
+      context: context || undefined,
+    });
     return res.data;
   }
   throw new Error("Fitur AI chat memerlukan backend");
