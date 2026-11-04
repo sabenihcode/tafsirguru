@@ -1,5 +1,6 @@
 import type { ChatMessage as Message, TafsirData, SearchResult } from "@/store/useChatStore";
-import { BookOpen, User, Search, Copy, Check } from "lucide-react";
+import type { KitabSource } from "@/services/api";
+import { BookOpen, User, Search, Copy, Check, Library, ChevronDown, ChevronUp } from "lucide-react";
 import Logo from "./Logo";
 import { useState } from "react";
 
@@ -10,6 +11,7 @@ interface Props {
 
 export default function ChatMessage({ message, onSelectResult }: Props) {
   const isUser = message.role === "user";
+  const sources = ((message.data as any)?.sources ?? []) as KitabSource[];
 
   return (
     <div className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}>
@@ -53,6 +55,10 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
             ) : (
               <div className="text-sm leading-relaxed whitespace-pre-wrap sm:text-base">{message.content}</div>
             )
+          )}
+
+          {message.role === "assistant" && message.type === "text" && sources.length > 0 && (
+            <KitabSources sources={sources} />
           )}
 
           {message.type === "loading" && (
@@ -317,6 +323,63 @@ function SearchResultsView({
           </button>
         ))}
       </div>
+    </div>
+  );
+}
+
+function KitabSources({ sources }: { sources: KitabSource[] }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-teal-100 bg-teal-50/50">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center justify-between gap-2 px-3 py-2 text-xs font-semibold text-teal-700 sm:text-sm"
+      >
+        <span className="flex items-center gap-1.5">
+          <Library className="h-4 w-4" />
+          {sources.length} sumber kitab
+        </span>
+        {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open && (
+        <div className="space-y-2 px-3 pb-3">
+          {sources.map((s, i) => (
+            <SourceCard key={i} index={i + 1} source={s} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SourceCard({ index, source }: { index: number; source: KitabSource }) {
+  const [expanded, setExpanded] = useState(false);
+  const text = source.teks_asli || "";
+  const long = text.length > 300;
+  const shown = expanded || !long ? text : text.slice(0, 300) + "…";
+
+  return (
+    <div className="rounded-lg border border-teal-100 bg-white p-2.5 sm:p-3">
+      <div className="mb-1.5 flex items-start justify-between gap-2">
+        <p className="text-[11px] font-semibold text-teal-700 sm:text-xs">
+          [{index}] {source.kitab}
+          {source.bab ? ` — ${source.bab}` : ""}
+        </p>
+        <CopyButton text={`${source.kitab}${source.bab ? " — " + source.bab : ""}\n\n${text}`} />
+      </div>
+      <p dir="rtl" className="font-arabic text-lg leading-loose text-black sm:text-xl">
+        {shown}
+      </p>
+      {long && (
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          className="mt-1 text-[11px] font-medium text-teal-600 hover:underline sm:text-xs"
+        >
+          {expanded ? "Ringkas" : "Selengkapnya"}
+        </button>
+      )}
     </div>
   );
 }
