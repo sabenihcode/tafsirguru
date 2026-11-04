@@ -71,7 +71,7 @@ export default function ChatMessage({ message, onSelectResult }: Props) {
           )}
 
           {message.role === "assistant" && message.type === "text" && sources.length > 0 && (
-            <KitabSources items={sources} />
+            <KitabSources items={sources} cited={citedNums.size > 0} />
           )}
 
           {message.type === "loading" && (
@@ -341,7 +341,7 @@ function SearchResultsView({
   );
 }
 
-function KitabSources({ items }: { items: SourceItem[] }) {
+function KitabSources({ items, cited }: { items: SourceItem[]; cited: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-xl border border-teal-100 bg-teal-50/50">
@@ -352,7 +352,7 @@ function KitabSources({ items }: { items: SourceItem[] }) {
       >
         <span className="flex items-center gap-1.5">
           <Library className="h-4 w-4" />
-          {items.length} sumber dikutip
+          {items.length} sumber {cited ? "dikutip" : "ditemukan"}
         </span>
         {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </button>
@@ -399,7 +399,7 @@ function SourceCard({ index, source }: { index: number; source: KitabSource }) {
       {translated && (
         <div className="mt-2 rounded-lg border-l-4 border-teal-500 bg-teal-50 p-3">
           <p className="mb-1 text-xs font-semibold text-teal-700">Terjemahan Indonesia:</p>
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-black sm:text-base">{translated}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-black sm:text-base">{translated.replace(/\*+/g, "")}</p>
         </div>
       )}
     </div>
