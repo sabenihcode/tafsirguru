@@ -411,16 +411,10 @@ _gemini_active_model: Optional[str] = None
 
 # Urutan fallback model ( terbaru lebih dulu)
 GEMINI_MODEL_FALLBACKS = [
-    "gemini-flash-lite-latest",
-    "gemini-2.5-flash-lite",
-    "gemini-2.0-flash-lite",
-    "gemini-flash-latest",
-    "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-3-flash-preview",
-    "gemini-pro-latest",
-    "gemini-1.5-flash",
-    "gemini-1.5-pro",
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-2.5-flash-lite",   
 ]
 
 
